@@ -64,6 +64,9 @@ const settingConcurrent = document.getElementById("settingConcurrent");
 const settingConnections = document.getElementById("settingConnections");
 const settingFormat = document.getElementById("settingFormat");
 const settingQuality = document.getElementById("settingQuality");
+const settingDownloadDir = document.getElementById("settingDownloadDir");
+const settingDownloadDirText = document.getElementById("settingDownloadDirText");
+const btnOpenDownloadsFolder = document.getElementById("btnOpenDownloadsFolder");
 const btnSaveSettings = document.getElementById("btnSaveSettings");
 
 // ============================================================
@@ -270,8 +273,11 @@ function setupEventListeners() {
     loadHistory(historyCurrentPage + 1);
   });
 
-  // Settings Save Listener
+  // Settings Save & Open Folder Listener
   btnSaveSettings.addEventListener("click", saveSettings);
+  if (btnOpenDownloadsFolder) {
+    btnOpenDownloadsFolder.addEventListener("click", () => openFolder(""));
+  }
 
   // Engine Update Listeners
   if (btnDismissUpdate) {
@@ -784,6 +790,12 @@ async function loadAndApplySettings() {
       settingQuality.value = settings.default_quality;
       qualitySelect.value = settings.default_quality;
     }
+    if (settingDownloadDirText) {
+      settingDownloadDirText.textContent = settings.download_dir || "System Downloads";
+    }
+    if (settingDownloadDir) {
+      settingDownloadDir.value = settings.download_dir || "";
+    }
   }
 }
 
@@ -793,12 +805,16 @@ async function saveSettings() {
     default_connections: parseInt(settingConnections.value, 10),
     default_format: settingFormat.value,
     default_quality: settingQuality.value,
+    download_dir: settingDownloadDir ? settingDownloadDir.value.trim() : "",
   };
 
   connectionsSlider.value = String(payload.default_connections);
   speedBadge.textContent = `⚡ ${payload.default_connections}x Connections`;
   formatSelect.value = payload.default_format;
   qualitySelect.value = payload.default_quality;
+  if (settingDownloadDirText) {
+    settingDownloadDirText.textContent = payload.download_dir || "System Downloads";
+  }
 
   if (chrome && chrome.storage && chrome.storage.local) {
     await chrome.storage.local.set({ userSettings: payload });
@@ -812,6 +828,10 @@ async function saveSettings() {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
+        const savedData = await res.json();
+        if (savedData && savedData.settings && savedData.settings.download_dir && settingDownloadDirText) {
+          settingDownloadDirText.textContent = savedData.settings.download_dir;
+        }
         showToast("💾 Settings saved successfully!");
         return;
       }

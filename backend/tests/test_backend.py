@@ -135,18 +135,24 @@ def test_cancel_task(client):
     assert res_cancel.get_json()["success"] is True
 
 
-def test_settings_endpoints(client):
+def test_settings_endpoints(client, tmp_path):
     # GET settings
     res = client.get("/settings")
     assert res.status_code == 200
     data = res.get_json()
     assert "max_concurrent_downloads" in data
+    assert "download_dir" in data
 
     # POST settings
-    res_post = client.post("/settings", json={"max_concurrent_downloads": 4, "default_format": "mp3"})
+    custom_dir = str(tmp_path / "CustomDownloads")
+    res_post = client.post(
+        "/settings",
+        json={"max_concurrent_downloads": 4, "default_format": "mp3", "download_dir": custom_dir},
+    )
     assert res_post.status_code == 200
     assert res_post.get_json()["success"] is True
     assert res_post.get_json()["settings"]["max_concurrent_downloads"] == 4
+    assert res_post.get_json()["settings"]["download_dir"] == custom_dir
 
 
 def test_update_endpoints(client):

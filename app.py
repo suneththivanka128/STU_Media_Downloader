@@ -36,6 +36,34 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 # 1. CONFIG & PATHS
 # ============================================================
 
+def _get_default_downloads_dir() -> Path:
+    system_os = platform.system()
+    if system_os == "Windows":
+        # Try Windows registry for redirected / OneDrive Downloads folder
+        try:
+            import winreg
+            sub_key = r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, sub_key) as key:
+                for guid in ("{374DE290-123F-4565-9164-39C4925E467B}", "{7D83EE9B-2244-4E70-B1F5-5393042AF1E4}", "Downloads"):
+                    try:
+                        val, _ = winreg.QueryValueEx(key, guid)
+                        expanded = os.path.expandvars(str(val))
+                        if os.path.exists(expanded):
+                            return Path(expanded)
+                    except (FileNotFoundError, OSError):
+                        pass
+        except Exception:
+            pass
+
+        userprofile = os.environ.get("USERPROFILE")
+        if userprofile:
+            p = Path(userprofile) / "Downloads"
+            if p.exists():
+                return p
+
+    return Path.home() / "Downloads"
+
+
 def _get_configured_dir(env_var: str, default_path: Path, fallback_local: Path) -> Path:
     custom = os.environ.get(env_var)
     target = Path(custom) if custom else default_path
@@ -58,7 +86,7 @@ APP_DIR = _get_configured_dir(
 
 DOWNLOADS_DIR = _get_configured_dir(
     "DOWNLOADS_DIR",
-    Path.home() / "Downloads",
+    _get_default_downloads_dir(),
     Path(__file__).parent / "Downloads"
 )
 
@@ -69,7 +97,8 @@ DEFAULT_SETTINGS = {
     "max_concurrent_downloads": 3,
     "default_connections": 16,
     "default_format": "mp4",
-    "default_quality": "best"
+    "default_quality": "best",
+    "download_dir": ""
 }
 
 def load_settings():
@@ -92,6 +121,15 @@ def save_settings_to_file(new_settings):
     return current
 
 current_settings = load_settings()
+
+# If custom download_dir was configured in settings, apply it
+if current_settings.get("download_dir"):
+    try:
+        _custom_p = Path(current_settings["download_dir"]).expanduser().resolve()
+        _custom_p.mkdir(parents=True, exist_ok=True)
+        DOWNLOADS_DIR = _custom_p
+    except Exception as _e:
+        print(f"[Notice] Using default DOWNLOADS_DIR: {DOWNLOADS_DIR}", file=sys.stderr)
 
 ytdlp_update_state = {
     "checked_at": None,
@@ -474,6 +512,8 @@ def run_download_task(task_id, url, output_format, quality, connections, custom_
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 bufsize=1,
                 universal_newlines=True
             )
@@ -523,9 +563,30 @@ def run_download_task(task_id, url, output_format, quality, connections, custom_
                     return
 
             if process.returncode == 0:
+                # If final_path was not captured from stdout or does not exist, scan DOWNLOADS_DIR for the newest file
+                if not final_path or not os.path.exists(final_path):
+                    newest_file = None
+                    newest_mtime = started_at - 1
+                    try:
+                        for entry in os.scandir(DOWNLOADS_DIR):
+                            if entry.is_file() and not entry.name.endswith(PARTIAL_FILE_EXTENSIONS):
+                                try:
+                                    st = entry.stat()
+                                    if st.st_mtime >= newest_mtime:
+                                        newest_mtime = st.st_mtime
+                                        newest_file = entry.path
+                                except OSError:
+                                    pass
+                    except Exception:
+                        pass
+                    if newest_file:
+                        final_path = newest_file
+
                 if final_path and os.path.exists(final_path):
                     final_size = round(os.path.getsize(final_path) / (1024 * 1024), 2)
                     final_title = Path(final_path).stem
+                else:
+                    final_path = str(DOWNLOADS_DIR)
 
                 _update_progress(
                     task_id,
@@ -600,14 +661,31 @@ def dismiss_update_notification():
 
 @app.route("/settings", methods=["GET", "POST"])
 def settings_endpoint():
+    global DOWNLOADS_DIR
     if request.method == "POST":
         data = request.get_json(force=True) or {}
+        if "download_dir" in data:
+            new_dir = str(data["download_dir"]).strip()
+            if new_dir:
+                try:
+                    p = Path(new_dir).expanduser().resolve()
+                    p.mkdir(parents=True, exist_ok=True)
+                    DOWNLOADS_DIR = p
+                    data["download_dir"] = str(DOWNLOADS_DIR)
+                except Exception as e:
+                    return jsonify({"error": f"Invalid download directory: {e}"}), 400
+            else:
+                DOWNLOADS_DIR = _get_configured_dir("DOWNLOADS_DIR", _get_default_downloads_dir(), Path(__file__).parent / "Downloads")
+                data["download_dir"] = ""
+
         updated = save_settings_to_file(data)
         if "max_concurrent_downloads" in data:
             update_concurrency_limit(int(data["max_concurrent_downloads"]))
-        return jsonify({"success": True, "settings": updated})
+        return jsonify({"success": True, "settings": {**updated, "download_dir": str(DOWNLOADS_DIR)}})
     else:
-        return jsonify(load_settings())
+        s = load_settings()
+        s["download_dir"] = str(DOWNLOADS_DIR)
+        return jsonify(s)
 
 
 @app.route("/info", methods=["GET"])
@@ -846,30 +924,54 @@ def clear_history():
 
 @app.route("/open-folder", methods=["POST"])
 def open_folder():
-    data = request.get_json(force=True)
-    file_path = data.get("file_path")
-    if not file_path:
-        return jsonify({"error": "file_path is required"}), 400
-
-    downloads_real = os.path.realpath(str(DOWNLOADS_DIR))
-    requested_real = os.path.realpath(file_path)
-
-    if not requested_real.startswith(downloads_real):
-        return jsonify({"error": "Access denied — path outside Downloads folder"}), 403
-
-    if not os.path.exists(requested_real):
-        return jsonify({"error": "File not found"}), 404
+    data = request.get_json(force=True) or {}
+    file_path = data.get("file_path") or ""
 
     system_os = platform.system()
+    downloads_real = os.path.realpath(str(DOWNLOADS_DIR))
+
+    target_to_open = None
+
+    if file_path:
+        requested_real = os.path.realpath(file_path)
+        # Case-insensitive path check for Windows to avoid drive letter casing mismatches
+        is_safe = (
+            requested_real.lower().startswith(downloads_real.lower())
+            if system_os == "Windows"
+            else requested_real.startswith(downloads_real)
+        )
+        if not is_safe:
+            return jsonify({"error": "Access denied — path outside Downloads folder"}), 403
+
+        if os.path.exists(requested_real):
+            target_to_open = requested_real
+
+    # Fallback: if specific file is not found or empty, open Downloads directory itself
+    if not target_to_open:
+        target_to_open = downloads_real
+
+    if not os.path.exists(target_to_open):
+        try:
+            os.makedirs(target_to_open, exist_ok=True)
+        except Exception:
+            return jsonify({"error": "Downloads folder not found"}), 404
+
     try:
         if system_os == "Windows":
-            subprocess.run(["explorer", "/select,", os.path.normpath(requested_real)])
+            norm_target = os.path.normpath(target_to_open)
+            if os.path.isfile(norm_target):
+                subprocess.run(["explorer", f"/select,{norm_target}"])
+            else:
+                subprocess.run(["explorer", norm_target])
         elif system_os == "Darwin":
-            subprocess.run(["open", "-R", requested_real])
+            if os.path.isfile(target_to_open):
+                subprocess.run(["open", "-R", target_to_open])
+            else:
+                subprocess.run(["open", target_to_open])
         else:
-            folder_to_open = requested_real if os.path.isdir(requested_real) else os.path.dirname(requested_real)
+            folder_to_open = target_to_open if os.path.isdir(target_to_open) else os.path.dirname(target_to_open)
             subprocess.run(["xdg-open", folder_to_open])
-        return jsonify({"success": True})
+        return jsonify({"success": True, "opened": str(target_to_open)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
