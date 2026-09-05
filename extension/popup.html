@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STU Media Downloader</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-icon">⚡</div>
+        <div class="brand-text">
+          <h1>STU Media Downloader</h1>
+          <span class="version">v1.0.0</span>
+        </div>
+      </div>
+      <div class="status-indicator" id="serverStatus" title="Local Server Status">
+        <span class="status-dot offline" id="statusDot"></span>
+        <span class="status-text" id="statusText">Checking...</span>
+      </div>
+    </header>
+
+    <!-- Server Offline Alert Banner -->
+    <div class="alert-banner hidden" id="serverAlert">
+      <div class="alert-content">
+        <span class="alert-icon">⚠️</span>
+        <div class="alert-msg">
+          <strong>Backend Offline</strong>
+          <span>Start server: <code>python backend/app.py</code></span>
+        </div>
+      </div>
+      <button class="btn-retry" id="btnRetryServer" title="Retry Connection">🔄</button>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs-nav">
+      <button class="tab-btn active" data-tab="tab-media">
+        <span class="tab-icon">📥</span>
+        <span>Media</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-queue">
+        <span class="tab-icon">⚡</span>
+        <span>Queue</span>
+        <span class="tab-badge hidden" id="queueBadge">0</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-history">
+        <span class="tab-icon">📜</span>
+        <span>History</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-settings">
+        <span class="tab-icon">⚙️</span>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="tabs-content">
+
+      <!-- TAB 1: MEDIA DETECTION & DOWNLOAD -->
+      <section class="tab-pane active" id="tab-media">
+        <div class="form-group">
+          <label for="mediaUrl">Media URL</label>
+          <div class="input-with-btn">
+            <input type="text" id="mediaUrl" placeholder="Paste video/audio URL here..." autocomplete="off">
+            <button class="btn-icon" id="btnPaste" title="Paste from clipboard">📋</button>
+          </div>
+        </div>
+
+        <div class="actions-row">
+          <button class="btn-secondary" id="btnScanMedia">
+            <span class="btn-icon-spin hidden" id="scanSpinner">⏳</span>
+            <span id="scanBtnText">🔍 Scan Media</span>
+          </button>
+          <button class="btn-ghost" id="btnUseActiveTab" title="Fetch URL from current browser tab">
+            🌐 Current Tab
+          </button>
+        </div>
+
+        <!-- Preview Card -->
+        <div class="preview-card hidden" id="previewCard">
+          <div class="preview-thumb-wrap">
+            <img id="previewThumb" src="" alt="Thumbnail">
+            <span class="preview-duration" id="previewDuration">00:00</span>
+          </div>
+          <div class="preview-details">
+            <h3 class="preview-title" id="previewTitle">Video Title</h3>
+            <div class="preview-meta">
+              <span class="badge badge-info" id="previewSource">Detected</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Options Panel -->
+        <div class="options-panel">
+          <div class="options-grid">
+            <div class="form-group">
+              <label for="formatSelect">Format</label>
+              <select id="formatSelect" title="Select Output Format" aria-label="Select Output Format">
+                <option value="mp4" selected>MP4 (Video)</option>
+                <option value="mkv">MKV (Video)</option>
+                <option value="webm">WebM (Video)</option>
+                <option value="mp3">MP3 (Audio Only)</option>
+                <option value="m4a">M4A (Audio Only)</option>
+                <option value="wav">WAV (Audio Only)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="qualitySelect">Quality</label>
+              <select id="qualitySelect" title="Select Quality" aria-label="Select Quality">
+                <option value="best" selected>Best Available</option>
+                <option value="1080p">1080p (Full HD)</option>
+                <option value="720p">720p (HD)</option>
+                <option value="480p">480p (SD)</option>
+                <option value="360p">360p</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Speed Booster Slider -->
+          <div class="form-group speed-booster-group">
+            <div class="speed-header">
+              <label for="connectionsSlider">Multi-Connection Accelerator</label>
+              <span class="speed-badge" id="speedBadge">⚡ 16x Connections</span>
+            </div>
+            <input type="range" id="connectionsSlider" min="1" max="16" value="16" step="1">
+            <div class="speed-labels">
+              <span>1x (Normal)</span>
+              <span>8x</span>
+              <span>16x (Max Turbo)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Start Download Button -->
+        <button class="btn-primary btn-large" id="btnStartDownload">
+          <span>🚀 Start Accelerated Download</span>
+        </button>
+      </section>
+
+      <!-- TAB 2: LIVE QUEUE & PROGRESS -->
+      <section class="tab-pane" id="tab-queue">
+        <div class="queue-list" id="queueList">
+          <!-- Empty Queue Placeholder -->
+          <div class="empty-state" id="emptyQueue">
+            <div class="empty-icon">⚡</div>
+            <h3>No Active Downloads</h3>
+            <p>Add a video from the Media tab to start downloading with multi-connection acceleration!</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: HISTORY -->
+      <section class="tab-pane" id="tab-history">
+        <!-- Search & Filter Controls -->
+        <div class="history-controls">
+          <input type="text" id="historySearch" placeholder="🔍 Search downloads..." autocomplete="off" title="Search downloads" aria-label="Search downloads">
+          <select id="historyFilter" title="Filter History by Status" aria-label="Filter History by Status">
+            <option value="all">All</option>
+            <option value="Completed">Completed</option>
+            <option value="Failed">Failed</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+        </div>
+
+        <div class="history-header-actions">
+          <span class="history-count" id="historyCount">0 items</span>
+          <button class="btn-danger-ghost" id="btnClearHistory">🗑 Clear All</button>
+        </div>
+
+        <!-- History List -->
+        <div class="history-list" id="historyList">
+          <!-- Populated dynamically -->
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination-controls" id="paginationControls">
+          <button class="btn-page" id="btnPrevPage" disabled>◀ Prev</button>
+          <span class="page-info" id="pageInfo">Page 1</span>
+          <button class="btn-page" id="btnNextPage" disabled>Next ▶</button>
+        </div>
+      </section>
+
+      <!-- TAB 4: SETTINGS -->
+      <section class="tab-pane" id="tab-settings">
+        <div class="settings-group">
+          <div class="settings-item">
+            <div class="settings-label">
+              <strong>Simultaneous Downloads</strong>
+              <small>How many files download at the same time</small>
+            </div>
+            <select id="settingConcurrent" class="settings-select" title="Simultaneous Downloads Limit" aria-label="Simultaneous Downloads Limit">
+              <option value="1">1 download</option>
+              <option value="2">2 parallel</option>
+              <option value="3" selected>3 parallel (Default)</option>
+              <option value="4">4 parallel</option>
+              <option value="5">5 parallel (High Speed)</option>
+            </select>
+          </div>
+
+          <div class="settings-item">
+            <div class="settings-label">
+              <strong>Default Connections (Threads)</strong>
+              <small>Parallel threads per file (1-16)</small>
+            </div>
+            <select id="settingConnections" class="settings-select" title="Default Connections per Download" aria-label="Default Connections per Download">
+              <option value="4">4x Connections</option>
+              <option value="8">8x Connections</option>
+              <option value="16" selected>16x Connections (Max)</option>
+            </select>
+          </div>
+
+          <div class="settings-item">
+            <div class="settings-label">
+              <strong>Default Output Format</strong>
+              <small>Preferred format for downloads</small>
+            </div>
+            <select id="settingFormat" class="settings-select" title="Default Output Format" aria-label="Default Output Format">
+              <option value="mp4" selected>MP4 (Video)</option>
+              <option value="mkv">MKV (Video)</option>
+              <option value="webm">WebM (Video)</option>
+              <option value="mp3">MP3 (Audio)</option>
+            </select>
+          </div>
+
+          <div class="settings-item">
+            <div class="settings-label">
+              <strong>Default Quality</strong>
+              <small>Default video resolution</small>
+            </div>
+            <select id="settingQuality" class="settings-select" title="Default Download Quality" aria-label="Default Download Quality">
+              <option value="best" selected>Best Available</option>
+              <option value="1080p">1080p (Full HD)</option>
+              <option value="720p">720p (HD)</option>
+              <option value="480p">480p (SD)</option>
+              <option value="360p">360p</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn-primary" id="btnSaveSettings">
+          <span>💾 Save Settings</span>
+        </button>
+      </section>
+
+    </main>
+
+    <!-- Global Toast Container -->
+    <div class="popup-toast hidden" id="popupToast"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

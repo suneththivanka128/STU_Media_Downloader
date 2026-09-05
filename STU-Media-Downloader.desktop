@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=STU Media Downloader
+Comment=Start STU Media Downloader Server
+Exec=bash -c 'cd "$(dirname "%k")" && ./start_downloader.sh'
+Icon=extension/icons/icon-128.png
+Terminal=true
+Categories=Network;AudioVideo;
+Path=%k

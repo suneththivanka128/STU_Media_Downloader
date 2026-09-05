@@ -1,0 +1,65 @@
+# Python Virtual Environments
+venv/
+.venv/
+ENV/
+env/
+backend/venv/
+backend/env/
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Local Application Data & Databases
+*.sqlite
+*.db
+.smartdownloader/
+.studownloader/
+backend/.smartdownloader/
+backend/.studownloader/
+
+# Downloaded Media & Incomplete Chunks
+backend/Downloads/*
+!backend/Downloads/.gitkeep
+Downloads/*
+!Downloads/.gitkeep
+*.part
+*.ytdl
+*.aria2
+*.tmp
+
+# Dynamic/Self-Healed Binaries (Platform specific)
+backend/bin/*
+!backend/bin/.gitkeep
+
+# Environment & Secret Files
+.env
+*.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# IDE & Editor Configurations
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
