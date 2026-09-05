@@ -147,3 +147,15 @@ def test_settings_endpoints(client):
     assert res_post.status_code == 200
     assert res_post.get_json()["success"] is True
     assert res_post.get_json()["settings"]["max_concurrent_downloads"] == 4
+
+
+def test_update_endpoints(client):
+    # GET health contains ytdlp_update
+    res = client.get("/health")
+    assert res.status_code == 200
+    assert "ytdlp_update" in res.get_json()
+
+    # POST dismiss-update-notification
+    res_dismiss = client.post("/dismiss-update-notification")
+    assert res_dismiss.status_code == 200
+    assert res_dismiss.get_json()["success"] is True
