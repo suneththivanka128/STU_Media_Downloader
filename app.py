@@ -597,44 +597,90 @@ def get_media_info():
     try:
         yt_dlp_path = get_tool_path("yt-dlp")
         res = subprocess.run(
-            [yt_dlp_path, url, "-J", "--flat-playlist", "--no-warnings"],
+            [
+                yt_dlp_path, url,
+                "-J",
+                "--no-playlist",
+                "--no-warnings",
+                "--ignore-errors",
+                "--user-agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=15
+            timeout=30
         )
-        if res.returncode != 0:
-            return jsonify({"error": "Failed to extract media information", "details": res.stderr}), 400
 
-        data = json.loads(res.stdout)
+        stdout = res.stdout.strip()
+        stderr = res.stderr.strip()
+
+        if res.returncode != 0 or not stdout:
+            err_msg = stderr or "yt-dlp returned no output."
+            short_err = "\n".join(
+                line for line in err_msg.splitlines()
+                if len(line) < 400
+            )
+            return jsonify({
+                "error": "Failed to extract media information",
+                "details": short_err
+            }), 400
+
+        try:
+            data = json.loads(stdout)
+        except json.JSONDecodeError as jde:
+            return jsonify({
+                "error": "Could not parse yt-dlp response",
+                "details": str(jde),
+                "raw": stdout[:300]
+            }), 400
+
         title = data.get("title") or "Unknown Title"
         thumbnail = data.get("thumbnail") or ""
         duration = data.get("duration_string") or str(data.get("duration") or "")
+        uploader = data.get("uploader") or data.get("channel") or ""
+        view_count = data.get("view_count")
         formats = []
-        raw_formats = data.get("formats", [])
+        raw_formats = data.get("formats") or []
         qualities_seen = set()
 
         for f in raw_formats:
             h = f.get("height")
-            if h and h not in qualities_seen:
+            if h and h not in qualities_seen and f.get("vcodec", "none") != "none":
                 qualities_seen.add(h)
                 formats.append({
                     "format_id": f.get("format_id"),
                     "resolution": f"{h}p",
                     "ext": f.get("ext", "mp4"),
-                    "height": h
+                    "height": h,
+                    "fps": f.get("fps"),
                 })
         formats.sort(key=lambda x: x["height"], reverse=True)
+
+        if not formats and data.get("height"):
+            formats = [{"format_id": "best", "resolution": f"{data['height']}p",
+                        "ext": data.get("ext", "mp4"), "height": data["height"]}]
 
         return jsonify({
             "title": title,
             "thumbnail": thumbnail,
             "duration": duration,
+            "uploader": uploader,
+            "view_count": view_count,
             "formats": formats,
             "url": url
         })
+
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            "error": "Request timed out",
+            "details": "yt-dlp took longer than 30 seconds. Try again or check the URL."
+        }), 408
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": "Unexpected server error",
+            "details": str(e)
+        }), 500
 
 
 @app.route("/download", methods=["POST"])
