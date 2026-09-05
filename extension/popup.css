@@ -883,6 +883,18 @@ input[type="range"] {
   outline: none;
 }
 
+.settings-path-text {
+  word-break: break-all;
+  font-family: monospace;
+}
+
+.btn-settings-action {
+  padding: 6px 12px;
+  font-size: 11px;
+  width: auto;
+  white-space: nowrap;
+}
+
 /* Empty State */
 .empty-state {
   display: flex;
