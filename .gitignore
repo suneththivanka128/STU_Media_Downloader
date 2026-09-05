@@ -55,6 +55,10 @@ yarn-debug.log*
 *.swo
 *~
 
+# Development & Internal Documentation
+Dev_Doc/
+dev_doc/
+
 # Operating System Files
 .DS_Store
 .DS_Store?
