@@ -856,8 +856,29 @@ def open_folder():
 # 7. ENTRYPOINT
 # ============================================================
 
+def check_and_update_ytdlp():
+    try:
+        yt_dlp_path = get_tool_path("yt-dlp")
+        print(f"🔍 [Tool Check] Verifying yt-dlp installation & checking for updates...")
+        res = subprocess.run(
+            [yt_dlp_path, "-U"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=12
+        )
+        out = (res.stdout or res.stderr).strip()
+        last_line = out.splitlines()[-1] if out else "Checked."
+        print(f"⚡ [Tool Check] yt-dlp: {last_line}")
+    except subprocess.TimeoutExpired:
+        print("⚠️ [Tool Check] yt-dlp update check timed out (continuing with current version)...")
+    except Exception as e:
+        print(f"⚠️ [Tool Check] Could not check yt-dlp updates: {e}")
+
+
 if __name__ == "__main__":
     init_db()
+    check_and_update_ytdlp()
 
     if "--prod" in sys.argv:
         from waitress import serve

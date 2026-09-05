@@ -22,5 +22,9 @@ if command -v lsof >/dev/null 2>&1; then
     fi
 fi
 
+# Check and update yt-dlp
+echo "🔍 Checking for yt-dlp updates (yt-dlp -U)..."
+./backend/venv/bin/yt-dlp -U 2>/dev/null || true
+
 echo "🚀 Starting backend server on http://127.0.0.1:5000 ..."
 ./backend/venv/bin/python3 backend/app.py

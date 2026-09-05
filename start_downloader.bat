@@ -16,6 +16,9 @@ if not exist "backend\venv\Scripts\python.exe" (
     call backend\venv\Scripts\activate
 )
 
+echo 🔍 Checking for yt-dlp updates (yt-dlp -U)...
+backend\venv\Scripts\yt-dlp.exe -U
+
 echo 🚀 Starting backend server on http://127.0.0.1:5000 ...
 python backend\app.py
 pause
