@@ -80,7 +80,6 @@ STU_Media_Downloader/
 │   ├── popup.css                  # Modern dark mode styling & animations
 │   ├── popup.js                   # Frontend client logic, SSE progress stream & update notifications
 │   └── icons/                     # Extension icons (16px, 48px, 128px)
-├── Dev_Doc/                       # Architectural documentation & reference notes
 └── README.md
 ```
 
