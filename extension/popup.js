@@ -120,10 +120,11 @@ function switchTab(targetId) {
 }
 
 // ============================================================
-// 3. MEDIA TAB & AUTO-FILL
+// 3. MEDIA TAB & SCAN HANDLING
 // ============================================================
 
 async function initializeMediaInput() {
+  // Only scan if user explicitly clicked the overlay "⚡ Download" badge on a video
   if (chrome && chrome.storage && chrome.storage.local) {
     chrome.storage.local.get(["detectedMedia"], (res) => {
       if (res.detectedMedia) {
@@ -131,16 +132,20 @@ async function initializeMediaInput() {
         if (candidate.startsWith("blob:") || candidate.startsWith("data:")) {
           candidate = res.detectedMedia.pageUrl || "";
         }
-        if (candidate && (Date.now() - (res.detectedMedia.timestamp || 0) < 600000)) {
+        // Only load if captured recently (within last 5 minutes)
+        if (candidate && (Date.now() - (res.detectedMedia.timestamp || 0) < 300000)) {
           mediaUrlInput.value = candidate;
           triggerScan(candidate);
+          // Clear captured media so future popup openings won't automatically re-scan
+          chrome.storage.local.remove(["detectedMedia"]);
           return;
+        } else {
+          // Stale entry, clear it
+          chrome.storage.local.remove(["detectedMedia"]);
         }
       }
-      fetchActiveTabUrl();
+      // DO NOT auto-scan or auto-fetch active tab on normal popup open
     });
-  } else {
-    fetchActiveTabUrl();
   }
 }
 
@@ -150,11 +155,17 @@ async function fetchActiveTabUrl() {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab && tab.url && (tab.url.startsWith("http://") || tab.url.startsWith("https://"))) {
         mediaUrlInput.value = tab.url;
+        showToast("Active tab URL loaded ⚡ Scanning...");
         triggerScan(tab.url);
+      } else {
+        showToast("No valid web URL found in current tab");
       }
+    } else {
+      showToast("Cannot access browser tabs");
     }
   } catch (e) {
     console.warn("Could not query active tab:", e);
+    showToast("Unable to fetch current tab URL");
   }
 }
 
@@ -167,22 +178,37 @@ function setupEventListeners() {
     }
   });
 
+  // Paste from clipboard — does not auto-scan until user clicks Scan or presses Enter
   btnPaste.addEventListener("click", async () => {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
         mediaUrlInput.value = text.trim();
-        triggerScan(text.trim());
+        showToast("URL pasted! Click 'Scan Media' or press Enter 🔍");
       }
     } catch (e) {
       showToast("Unable to read clipboard");
     }
   });
 
+  // Enter key triggers scan manually
+  mediaUrlInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      const url = mediaUrlInput.value.trim();
+      if (url) {
+        triggerScan(url);
+      } else {
+        showToast("Please enter or paste a media URL first");
+      }
+    }
+  });
+
+  // Current Tab button — explicitly scans current tab
   btnUseActiveTab.addEventListener("click", () => {
     fetchActiveTabUrl();
   });
 
+  // Manual Scan button
   btnScanMedia.addEventListener("click", () => {
     const url = mediaUrlInput.value.trim();
     if (!url) {
@@ -235,12 +261,18 @@ async function triggerScan(url) {
       const data = await res.json();
       scannedMediaData = data;
       renderPreview(data);
+      showToast(`Media loaded: ${data.title ? data.title.slice(0, 25) + "..." : "Ready to download"} ⚡`);
     } else {
+      const errData = await res.json().catch(() => ({}));
+      showToast(errData.error || "Failed to extract media information ⚠️");
       previewCard.classList.add("hidden");
       scannedMediaData = null;
     }
   } catch (err) {
     console.error("Scan error:", err);
+    showToast("Network error while scanning media ⚠️");
+    previewCard.classList.add("hidden");
+    scannedMediaData = null;
   } finally {
     scanSpinner.classList.add("hidden");
     scanBtnText.textContent = "🔍 Scan Media";
