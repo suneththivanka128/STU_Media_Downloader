@@ -35,6 +35,18 @@
       <button class="btn-retry" id="btnRetryServer" title="Retry Connection">🔄</button>
     </div>
 
+    <!-- Engine Update Notification Banner -->
+    <div class="update-banner hidden" id="updateBanner">
+      <div class="update-content">
+        <span class="update-icon">🚀</span>
+        <div class="update-msg">
+          <strong id="updateBannerTitle">Core Engine Updated</strong>
+          <span id="updateBannerDesc">yt-dlp updated to latest version!</span>
+        </div>
+      </div>
+      <button class="btn-dismiss" id="btnDismissUpdate" title="Dismiss">✕</button>
+    </div>
+
     <!-- Navigation Tabs -->
     <nav class="tabs-nav">
       <button class="tab-btn active" data-tab="tab-media">
@@ -238,6 +250,15 @@
               <option value="480p">480p (SD)</option>
               <option value="360p">360p</option>
             </select>
+          <div class="settings-item">
+            <div class="settings-label">
+              <strong>Core Engine (yt-dlp)</strong>
+              <small id="settingEngineStatus">Checking engine version...</small>
+            </div>
+            <button type="button" class="btn-secondary" id="btnCheckEngineUpdate" title="Check for yt-dlp updates" style="padding: 6px 12px; font-size: 11px; width: auto; white-space: nowrap;">
+              <span id="engineUpdateIcon">🔄</span>
+              <span id="engineUpdateText">Check Update</span>
+            </button>
           </div>
         </div>
 

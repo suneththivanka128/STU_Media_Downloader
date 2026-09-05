@@ -93,6 +93,15 @@ def save_settings_to_file(new_settings):
 
 current_settings = load_settings()
 
+ytdlp_update_state = {
+    "checked_at": None,
+    "version": "unknown",
+    "updated": False,
+    "message": "Not checked yet",
+    "has_notification": False,
+    "status": "pending"
+}
+
 ALLOWED_ORIGIN = os.environ.get("EXTENSION_ORIGIN", "*")
 
 
@@ -572,8 +581,21 @@ def health():
             "yt_dlp": bool(shutil.which("yt-dlp") or Path(sys.executable).parent.joinpath("yt-dlp").exists()),
             "aria2c": bool(shutil.which("aria2c")),
             "ffmpeg": bool(shutil.which("ffmpeg"))
-        }
+        },
+        "ytdlp_update": ytdlp_update_state
     })
+
+
+@app.route("/check-updates", methods=["POST", "GET"])
+def trigger_check_updates():
+    state = check_and_update_ytdlp()
+    return jsonify(state)
+
+
+@app.route("/dismiss-update-notification", methods=["POST"])
+def dismiss_update_notification():
+    ytdlp_update_state["has_notification"] = False
+    return jsonify({"success": True})
 
 
 @app.route("/settings", methods=["GET", "POST"])
@@ -856,24 +878,69 @@ def open_folder():
 # 7. ENTRYPOINT
 # ============================================================
 
-def check_and_update_ytdlp():
+def check_and_update_ytdlp() -> dict:
+    global ytdlp_update_state
     try:
         yt_dlp_path = get_tool_path("yt-dlp")
-        print(f"🔍 [Tool Check] Verifying yt-dlp installation & checking for updates...")
+        
+        # Get current version before update
+        old_ver = "unknown"
+        try:
+            ver_proc = subprocess.run([yt_dlp_path, "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+            if ver_proc.returncode == 0:
+                old_ver = ver_proc.stdout.strip()
+        except Exception:
+            pass
+
+        print(f"🔍 [Tool Check] Verifying yt-dlp installation & checking for updates (current: {old_ver})...")
         res = subprocess.run(
             [yt_dlp_path, "-U"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=12
+            timeout=15
         )
         out = (res.stdout or res.stderr).strip()
         last_line = out.splitlines()[-1] if out else "Checked."
         print(f"⚡ [Tool Check] yt-dlp: {last_line}")
+
+        is_updated = "Updated yt-dlp" in out or "Updating to version" in out
+        new_ver = old_ver
+        if is_updated:
+            try:
+                ver_proc2 = subprocess.run([yt_dlp_path, "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+                if ver_proc2.returncode == 0:
+                    new_ver = ver_proc2.stdout.strip()
+            except Exception:
+                pass
+
+        ytdlp_update_state.update({
+            "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "version": new_ver,
+            "old_version": old_ver,
+            "updated": is_updated,
+            "message": last_line,
+            "has_notification": is_updated,
+            "status": "updated" if is_updated else "up_to_date"
+        })
+        return ytdlp_update_state
+
     except subprocess.TimeoutExpired:
         print("⚠️ [Tool Check] yt-dlp update check timed out (continuing with current version)...")
+        ytdlp_update_state.update({
+            "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "message": "Update check timed out.",
+            "status": "timeout"
+        })
+        return ytdlp_update_state
     except Exception as e:
         print(f"⚠️ [Tool Check] Could not check yt-dlp updates: {e}")
+        ytdlp_update_state.update({
+            "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "message": str(e),
+            "status": "error"
+        })
+        return ytdlp_update_state
 
 
 if __name__ == "__main__":

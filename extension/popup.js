@@ -49,6 +49,16 @@ const btnNextPage = document.getElementById("btnNextPage");
 const pageInfo = document.getElementById("pageInfo");
 const popupToast = document.getElementById("popupToast");
 
+// Update Notification Elements
+const updateBanner = document.getElementById("updateBanner");
+const updateBannerTitle = document.getElementById("updateBannerTitle");
+const updateBannerDesc = document.getElementById("updateBannerDesc");
+const btnDismissUpdate = document.getElementById("btnDismissUpdate");
+const settingEngineStatus = document.getElementById("settingEngineStatus");
+const btnCheckEngineUpdate = document.getElementById("btnCheckEngineUpdate");
+const engineUpdateIcon = document.getElementById("engineUpdateIcon");
+const engineUpdateText = document.getElementById("engineUpdateText");
+
 // Settings Elements
 const settingConcurrent = document.getElementById("settingConcurrent");
 const settingConnections = document.getElementById("settingConnections");
@@ -73,10 +83,15 @@ async function checkServerHealth() {
   try {
     const res = await fetch(`${API_BASE}/health`, { method: "GET", signal: AbortSignal.timeout(3000) });
     if (res.ok) {
+      const data = await res.json();
       isBackendOnline = true;
       statusDot.className = "status-dot online";
       statusText.textContent = "Online";
       serverAlert.classList.add("hidden");
+
+      if (data.ytdlp_update) {
+        handleYtdlpUpdateNotice(data.ytdlp_update);
+      }
       return true;
     }
   } catch (err) {
@@ -87,6 +102,25 @@ async function checkServerHealth() {
   statusText.textContent = "Offline";
   serverAlert.classList.remove("hidden");
   return false;
+}
+
+function handleYtdlpUpdateNotice(info) {
+  if (!info) return;
+
+  if (settingEngineStatus) {
+    if (info.version && info.version !== "unknown") {
+      settingEngineStatus.textContent = `v${info.version} • ${info.updated ? "Updated" : "Up to date"}`;
+    } else if (info.message) {
+      settingEngineStatus.textContent = info.message;
+    }
+  }
+
+  if (info.updated && updateBanner) {
+    updateBannerTitle.textContent = "⚡ Engine Updated!";
+    updateBannerDesc.textContent = info.message || `yt-dlp updated to ${info.version}`;
+    updateBanner.classList.remove("hidden");
+    showToast(`🎉 yt-dlp updated to v${info.version}! Extractors up to date.`, 5000);
+  }
 }
 
 function showToast(message, duration = 3000) {
@@ -238,6 +272,51 @@ function setupEventListeners() {
 
   // Settings Save Listener
   btnSaveSettings.addEventListener("click", saveSettings);
+
+  // Engine Update Listeners
+  if (btnDismissUpdate) {
+    btnDismissUpdate.addEventListener("click", () => {
+      if (updateBanner) updateBanner.classList.add("hidden");
+      fetch(`${API_BASE}/dismiss-update-notification`, { method: "POST" }).catch(() => {});
+    });
+  }
+
+  if (btnCheckEngineUpdate) {
+    btnCheckEngineUpdate.addEventListener("click", checkEngineUpdate);
+  }
+}
+
+async function checkEngineUpdate() {
+  if (!isBackendOnline) {
+    showToast("Backend offline — please start backend server first");
+    return;
+  }
+
+  if (engineUpdateIcon) engineUpdateIcon.classList.add("btn-icon-spin");
+  if (engineUpdateText) engineUpdateText.textContent = "Checking...";
+  if (btnCheckEngineUpdate) btnCheckEngineUpdate.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/check-updates`, { method: "POST" });
+    if (res.ok) {
+      const info = await res.json();
+      handleYtdlpUpdateNotice(info);
+      if (info.updated) {
+        showToast(`🎉 yt-dlp updated to ${info.version}! Latest extractors loaded ⚡`, 5000);
+      } else {
+        showToast(`✅ yt-dlp is up to date (${info.version})!`, 4000);
+      }
+    } else {
+      showToast("⚠️ Could not check for updates");
+    }
+  } catch (err) {
+    console.error("Check update error:", err);
+    showToast("⚠️ Network error while checking updates");
+  } finally {
+    if (engineUpdateIcon) engineUpdateIcon.classList.remove("btn-icon-spin");
+    if (engineUpdateText) engineUpdateText.textContent = "Check Update";
+    if (btnCheckEngineUpdate) btnCheckEngineUpdate.disabled = false;
+  }
 }
 
 async function triggerScan(url) {
