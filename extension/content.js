@@ -68,7 +68,20 @@
             showToast("⚠️ Extension error — try refreshing the page.", false);
             return;
           }
-          showToast(`⚡ Link captured (${pageTitle.slice(0, 25)}...)! Click extension icon.`);
+
+          // Automatically trigger the extension popup to open via background worker
+          try {
+            chrome.runtime.sendMessage({ action: "open_popup" }, (response) => {
+              if (chrome.runtime.lastError || (response && !response.success)) {
+                // If browser restrictions prevented automatic popup, notify user
+                showToast(`⚡ Link captured (${pageTitle.slice(0, 25)}...)! Click extension icon.`);
+              } else {
+                showToast(`⚡ Opening STU Downloader...`);
+              }
+            });
+          } catch (_) {
+            showToast(`⚡ Link captured (${pageTitle.slice(0, 25)}...)! Click extension icon.`);
+          }
         }
       );
     } catch (err) {
