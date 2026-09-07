@@ -154,6 +154,23 @@ if ALLOWED_ORIGIN == "*":
 else:
     CORS(app, origins=[ALLOWED_ORIGIN])
 
+APP_VERSION = "1.0.0"
+APP_GITHUB_REPO = "suneththivanka128/STU_Media_Downloader"
+
+
+def is_dev_mode() -> bool:
+    """Return True if running in development mode (disables auto-updates/notifications)."""
+    if "IS_DEV_MODE" in app.config:
+        return bool(app.config["IS_DEV_MODE"])
+    if "--dev" in sys.argv or os.environ.get("STU_DEV_MODE") == "1":
+        return True
+    current_dir = Path(__file__).resolve().parent
+    if (current_dir / ".dev").exists() or (current_dir.parent / ".dev").exists():
+        return True
+    if "--prod" not in sys.argv and not os.environ.get("PYTEST_CURRENT_TEST"):
+        return True
+    return False
+
 
 # ============================================================
 # 3. SQLALCHEMY SETUP
@@ -728,6 +745,8 @@ def health():
     return jsonify({
         "status": "ok",
         "os": platform.system(),
+        "app_version": APP_VERSION,
+        "is_dev": is_dev_mode(),
         "tools": {
             "yt_dlp": bool(shutil.which("yt-dlp") or Path(sys.executable).parent.joinpath("yt-dlp").exists()),
             "aria2c": bool(shutil.which("aria2c")),
@@ -735,6 +754,163 @@ def health():
         },
         "ytdlp_update": ytdlp_update_state
     })
+
+
+@app.route("/app-version", methods=["GET"])
+def get_app_version():
+    """Return current app version, dev mode status, and repository info."""
+    dev = is_dev_mode()
+    git_hash = None
+    try:
+        res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=2)
+        if res.returncode == 0:
+            git_hash = res.stdout.strip()
+    except Exception:
+        pass
+
+    return jsonify({
+        "name": "STU Media Downloader",
+        "version": APP_VERSION,
+        "is_dev": dev,
+        "git_hash": git_hash,
+        "repo": APP_GITHUB_REPO
+    })
+
+
+@app.route("/check-app-update", methods=["POST", "GET"])
+def check_app_update():
+    """Check GitHub repository for newer releases/versions of STU Media Downloader."""
+    if is_dev_mode():
+        return jsonify({
+            "is_dev": True,
+            "update_available": False,
+            "current_version": APP_VERSION,
+            "message": "Development mode active — update checks are disabled."
+        })
+
+    import requests
+
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": f"STU-Media-Downloader/{APP_VERSION}"
+    }
+
+    # 1. First try GitHub Releases
+    try:
+        rel_resp = requests.get(
+            f"https://api.github.com/repos/{APP_GITHUB_REPO}/releases/latest",
+            headers=headers,
+            timeout=8
+        )
+        if rel_resp.status_code == 200:
+            rel_data = rel_resp.json()
+            latest_tag = rel_data.get("tag_name", "").lstrip("v").strip()
+            release_url = rel_data.get("html_url", f"https://github.com/{APP_GITHUB_REPO}/releases")
+            release_notes = rel_data.get("body", "")
+
+            def _parse_version(v_str):
+                return [int(x) for x in re.findall(r"\d+", v_str)] or [0]
+
+            is_newer = _parse_version(latest_tag) > _parse_version(APP_VERSION)
+            return jsonify({
+                "is_dev": False,
+                "update_available": is_newer,
+                "current_version": APP_VERSION,
+                "latest_version": latest_tag,
+                "release_url": release_url,
+                "release_notes": release_notes,
+                "message": f"New version v{latest_tag} is available!" if is_newer else f"STU Downloader is up to date (v{APP_VERSION})."
+            })
+    except Exception as e:
+        print(f"⚠️ [Update Check] GitHub release check failed: {e}")
+
+    # 2. Fallback to GitHub Commits (if releases aren't tagged yet)
+    try:
+        commit_resp = requests.get(
+            f"https://api.github.com/repos/{APP_GITHUB_REPO}/commits/main",
+            headers=headers,
+            timeout=8
+        )
+        if commit_resp.status_code == 200:
+            cdata = commit_resp.json()
+            remote_sha = cdata.get("sha", "")[:7]
+            commit_msg = cdata.get("commit", {}).get("message", "").split("\n")[0]
+
+            local_sha = ""
+            try:
+                res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=2)
+                if res.returncode == 0:
+                    local_sha = res.stdout.strip()
+            except Exception:
+                pass
+
+            is_newer = bool(local_sha and remote_sha and local_sha != remote_sha)
+            return jsonify({
+                "is_dev": False,
+                "update_available": is_newer,
+                "current_version": APP_VERSION,
+                "local_sha": local_sha,
+                "latest_sha": remote_sha,
+                "commit_message": commit_msg,
+                "release_url": f"https://github.com/{APP_GITHUB_REPO}",
+                "message": f"New updates available on GitHub ({remote_sha}): {commit_msg}" if is_newer else f"STU Downloader is up to date (v{APP_VERSION})."
+            })
+    except Exception as e:
+        return jsonify({
+            "is_dev": False,
+            "update_available": False,
+            "current_version": APP_VERSION,
+            "error": str(e),
+            "message": "Unable to connect to GitHub to check for updates."
+        }), 502
+
+    return jsonify({
+        "is_dev": False,
+        "update_available": False,
+        "current_version": APP_VERSION,
+        "message": f"STU Downloader is up to date (v{APP_VERSION})."
+    })
+
+
+@app.route("/apply-app-update", methods=["POST"])
+def apply_app_update():
+    """Safely pull latest updates if installed via git and not in dev mode."""
+    if is_dev_mode():
+        return jsonify({
+            "success": False,
+            "error": "Automatic update is disabled in Development Mode to protect local modifications."
+        }), 403
+
+    git_dir = Path(__file__).resolve().parent.parent / ".git"
+    if not git_dir.exists():
+        return jsonify({
+            "success": False,
+            "error": "Automatic update is only supported on git-cloned installations. Please download the latest release package."
+        }), 400
+
+    try:
+        proc = subprocess.run(
+            ["git", "pull", "--ff-only"],
+            cwd=str(git_dir.parent),
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if proc.returncode != 0:
+            return jsonify({
+                "success": False,
+                "error": f"git pull failed: {proc.stderr or proc.stdout}"
+            }), 500
+
+        return jsonify({
+            "success": True,
+            "message": "Update successfully applied! Please restart the backend server."
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 @app.route("/check-updates", methods=["POST", "GET"])

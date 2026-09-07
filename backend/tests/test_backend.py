@@ -173,3 +173,65 @@ def test_shutdown_endpoint(client):
     data = res.get_json()
     assert data["success"] is True
     assert "shutting down" in data["message"].lower()
+
+
+def test_app_version_and_health_endpoints(client):
+    # GET /health
+    res_health = client.get("/health")
+    assert res_health.status_code == 200
+    hdata = res_health.get_json()
+    assert hdata["app_version"] == "1.0.0"
+    assert "is_dev" in hdata
+
+    # GET /app-version
+    res_ver = client.get("/app-version")
+    assert res_ver.status_code == 200
+    vdata = res_ver.get_json()
+    assert vdata["version"] == "1.0.0"
+    assert vdata["name"] == "STU Media Downloader"
+    assert "suneththivanka128" in vdata["repo"]
+    assert "is_dev" in vdata
+
+
+def test_check_app_update_dev_mode(client):
+    app.config["IS_DEV_MODE"] = True
+    try:
+        res = client.post("/check-app-update")
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["is_dev"] is True
+        assert data["update_available"] is False
+        assert "development mode" in data["message"].lower()
+
+        # Applying update in dev mode must be blocked (HTTP 403)
+        res_apply = client.post("/apply-app-update")
+        assert res_apply.status_code == 403
+    finally:
+        app.config.pop("IS_DEV_MODE", None)
+
+
+def test_check_app_update_prod_mode_mock(client, monkeypatch):
+    app.config["IS_DEV_MODE"] = False
+    try:
+        class MockResponse:
+            status_code = 200
+            def json(self):
+                return {
+                    "tag_name": "v1.2.0",
+                    "html_url": "https://github.com/suneththivanka128/STU_Media_Downloader/releases/v1.2.0",
+                    "body": "Test release notes"
+                }
+
+        import requests
+        monkeypatch.setattr(requests, "get", lambda *args, **kwargs: MockResponse())
+
+        res = client.post("/check-app-update")
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["is_dev"] is False
+        assert data["update_available"] is True
+        assert data["latest_version"] == "1.2.0"
+        assert "release_url" in data
+    finally:
+        app.config.pop("IS_DEV_MODE", None)
+

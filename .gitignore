@@ -43,6 +43,8 @@ backend/bin/*
 .env
 *.env
 .env.*
+.dev
+backend/.dev
 
 # Logs
 *.log

@@ -104,7 +104,11 @@ STU_Media_Downloader/
 | `DELETE` | `/history/<id>` | Deletes an entry from SQLite history |
 | `POST` | `/history/clear` | Clears all history entries |
 | `GET/POST` | `/settings` | Reads or updates user preferences (concurrency, format, quality) |
+| `GET` | `/app-version` | Returns current application version, dev status, and repository metadata |
+| `POST` | `/check-app-update` | Checks GitHub for app updates (bypassed in Development Mode) |
+| `POST` | `/apply-app-update` | Pulls latest changes via git for git-cloned installations (production only) |
 | `POST` | `/check-updates` | Checks for and triggers `yt-dlp -U` updates on demand |
+| `POST` | `/shutdown` | Cleanly stops the backend server process and cleans up PID file |
 | `POST` | `/open-folder` | Opens downloaded file's enclosing directory in OS file explorer |
 
 ---
@@ -117,7 +121,7 @@ Run the complete test suite using `pytest`:
 ./backend/venv/bin/pytest backend/tests/test_backend.py -v
 ```
 
-All 8 tests verify database operations, health endpoints, path traversal security, task cancellations, and settings persistence.
+All 12 tests verify database operations, health endpoints, path traversal security, task cancellations, settings persistence, server shutdown, and app update checks.
 
 ---
 

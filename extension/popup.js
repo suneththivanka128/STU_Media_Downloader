@@ -58,6 +58,13 @@ const settingEngineStatus = document.getElementById("settingEngineStatus");
 const btnCheckEngineUpdate = document.getElementById("btnCheckEngineUpdate");
 const engineUpdateIcon = document.getElementById("engineUpdateIcon");
 const engineUpdateText = document.getElementById("engineUpdateText");
+const settingAppStatus = document.getElementById("settingAppStatus");
+const btnCheckAppUpdate = document.getElementById("btnCheckAppUpdate");
+const appUpdateIcon = document.getElementById("appUpdateIcon");
+const appUpdateText = document.getElementById("appUpdateText");
+
+let currentAppVersion = "1.0.0";
+let isDevEnvironment = false;
 
 // Settings Elements
 const settingConcurrent = document.getElementById("settingConcurrent");
@@ -97,8 +104,14 @@ async function checkServerHealth() {
       if (data.ytdlp_update) {
         handleYtdlpUpdateNotice(data.ytdlp_update);
       }
+      if (data.app_version) {
+        currentAppVersion = data.app_version;
+        isDevEnvironment = Boolean(data.is_dev);
+        handleAppVersionNotice(data.app_version, data.is_dev);
+      }
       if (settingServerStatus) settingServerStatus.textContent = "Server active on port 5000";
       if (btnShutdownServer) btnShutdownServer.disabled = false;
+      if (btnCheckAppUpdate) btnCheckAppUpdate.disabled = false;
       return true;
     }
   } catch (err) {
@@ -109,8 +122,19 @@ async function checkServerHealth() {
   statusText.textContent = "Offline";
   serverAlert.classList.remove("hidden");
   if (settingServerStatus) settingServerStatus.textContent = "Server is offline";
+  if (settingAppStatus) settingAppStatus.textContent = "Server offline";
   if (btnShutdownServer) btnShutdownServer.disabled = true;
+  if (btnCheckAppUpdate) btnCheckAppUpdate.disabled = true;
   return false;
+}
+
+function handleAppVersionNotice(version, isDev) {
+  if (!settingAppStatus) return;
+  if (isDev) {
+    settingAppStatus.textContent = `v${version} • Development Mode`;
+  } else {
+    settingAppStatus.textContent = `v${version} • Production`;
+  }
 }
 
 function handleYtdlpUpdateNotice(info) {
@@ -293,6 +317,10 @@ function setupEventListeners() {
     });
   }
 
+  if (btnCheckAppUpdate) {
+    btnCheckAppUpdate.addEventListener("click", checkAppUpdate);
+  }
+
   if (btnCheckEngineUpdate) {
     btnCheckEngineUpdate.addEventListener("click", checkEngineUpdate);
   }
@@ -347,6 +375,47 @@ async function shutdownBackendServer() {
     if (settingServerStatus) settingServerStatus.textContent = "Server is offline";
     if (btnShutdownServer) btnShutdownServer.disabled = true;
     showToast("🛑 Backend server stopped");
+  }
+}
+
+async function checkAppUpdate() {
+  if (!isBackendOnline) {
+    showToast("Backend offline — please start backend server first");
+    return;
+  }
+
+  if (appUpdateIcon) appUpdateIcon.classList.add("btn-icon-spin");
+  if (appUpdateText) appUpdateText.textContent = "Checking...";
+  if (btnCheckAppUpdate) btnCheckAppUpdate.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/check-app-update`, { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.is_dev) {
+        if (settingAppStatus) settingAppStatus.textContent = `v${data.current_version} • Development Mode`;
+        showToast("ℹ️ Development mode active — update checks disabled.", 4000);
+      } else if (data.update_available) {
+        const updateVer = data.latest_version ? `v${data.latest_version}` : (data.latest_sha || "latest");
+        if (settingAppStatus) settingAppStatus.textContent = `Update available: ${updateVer}`;
+        const userAction = confirm(`🚀 New STU Downloader update available (${updateVer})!\n\n${data.message || ""}\n\nDo you want to open the GitHub update page?`);
+        if (userAction && data.release_url) {
+          window.open(data.release_url, "_blank");
+        }
+      } else {
+        if (settingAppStatus) settingAppStatus.textContent = `v${data.current_version} • Up to date`;
+        showToast(`✅ STU Downloader is up to date (v${data.current_version})!`, 4000);
+      }
+    } else {
+      showToast("⚠️ Could not check for STU Downloader updates");
+    }
+  } catch (err) {
+    console.error("Check app update error:", err);
+    showToast("⚠️ Network error while checking app updates");
+  } finally {
+    if (appUpdateIcon) appUpdateIcon.classList.remove("btn-icon-spin");
+    if (appUpdateText) appUpdateText.textContent = "Check Update";
+    if (btnCheckAppUpdate) btnCheckAppUpdate.disabled = false;
   }
 }
 
