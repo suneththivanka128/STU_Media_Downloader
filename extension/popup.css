@@ -895,6 +895,16 @@ input[type="range"] {
   white-space: nowrap;
 }
 
+.btn-danger-action {
+  color: var(--accent-rose);
+  border-color: rgba(244, 63, 94, 0.4);
+}
+
+.btn-danger-action:hover {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: var(--accent-rose);
+}
+
 /* Empty State */
 .empty-state {
   display: flex;

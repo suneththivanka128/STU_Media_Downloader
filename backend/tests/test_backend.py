@@ -165,3 +165,11 @@ def test_update_endpoints(client):
     res_dismiss = client.post("/dismiss-update-notification")
     assert res_dismiss.status_code == 200
     assert res_dismiss.get_json()["success"] is True
+
+
+def test_shutdown_endpoint(client):
+    res = client.post("/shutdown", json={"force": True})
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert "shutting down" in data["message"].lower()

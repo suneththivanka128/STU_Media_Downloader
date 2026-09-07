@@ -23,17 +23,18 @@ A high-performance, cross-platform media downloader system combining a robust Py
 
 ### 1. Launch the Backend Server
 
-- **🐧 Linux:** Double-click `STU-Media-Downloader.desktop` or run:
-  ```bash
-  ./start_downloader.sh
-  ```
-- **🍎 macOS:** Double-click `start_downloader.command`
-- **🪟 Windows:** Double-click `start_downloader.bat`
-- **💻 Terminal (Manual):**
-  ```bash
-  source backend/venv/bin/activate
-  python backend/app.py
-  ```
+- **🐧 Linux:**
+  - Standard Terminal: `./start_downloader.sh`
+  - **Silent Background:** `./start_background.sh`
+  - **Stop Server:** `./stop_downloader.sh`
+- **🍎 macOS:**
+  - Standard: Double-click `start_downloader.command`
+  - **Stop Server:** Double-click `stop_downloader.command` (or `./stop_downloader.sh`)
+- **🪟 Windows:**
+  - Standard: Double-click `start_downloader.bat`
+  - **Silent Invisible Background:** Double-click `start_hidden.vbs`
+  - **Stop Server:** Double-click `stop_downloader.bat`
+- **🧩 In Extension:** Click the **🛑 Stop Server** button under the Extension's **Settings (⚙️)** tab anytime!
 
 ### 2. Install the Chrome Extension
 
@@ -60,8 +61,13 @@ A high-performance, cross-platform media downloader system combining a robust Py
 ```
 STU_Media_Downloader/
 ├── start_downloader.sh            # Linux launcher script (with auto-update check)
-├── start_downloader.command       # macOS launcher script (with auto-update check)
+├── start_background.sh            # Linux silent background launcher (runs without terminal)
+├── stop_downloader.sh             # Linux server stop script
 ├── start_downloader.bat           # Windows batch launcher (with auto-update check)
+├── start_hidden.vbs               # Windows 1-click invisible background launcher
+├── stop_downloader.bat            # Windows server stop script
+├── start_downloader.command       # macOS launcher script (with auto-update check)
+├── stop_downloader.command        # macOS server stop script
 ├── STU-Media-Downloader.desktop   # Linux desktop application shortcut
 ├── app.py                         # Root entrypoint proxy (kept in sync with backend/app.py)
 ├── backend/

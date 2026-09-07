@@ -26,6 +26,16 @@ if "%~1"=="--dev" (
     set "MODE_FLAG="
     echo ⚙️ Launching in Development Mode (debug=True)...
 )
+if "%~1"=="--bg" (
+    echo ⚡ Launching STU Media Downloader in background...
+    if exist "backend\venv\Scripts\pythonw.exe" (
+        start "" "backend\venv\Scripts\pythonw.exe" backend\app.py --prod
+    ) else (
+        start /b backend\venv\Scripts\python.exe backend\app.py --prod > nul 2>&1
+    )
+    echo ✅ Started in background on http://127.0.0.1:5000
+    exit /b 0
+)
 
 :: [Default] Production Mode — Fast, multi-threaded WSGI server via Waitress (No dev warnings)
 backend\venv\Scripts\python.exe backend\app.py %MODE_FLAG%

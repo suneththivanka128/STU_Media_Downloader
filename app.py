@@ -19,6 +19,7 @@ import shutil
 import hashlib
 import platform
 import subprocess
+import atexit
 import threading
 from pathlib import Path
 from datetime import datetime
@@ -232,6 +233,26 @@ LOCAL_BIN_DIR = Path(__file__).parent / "bin"
 LOCAL_BIN_DIR.mkdir(exist_ok=True)
 if str(LOCAL_BIN_DIR) not in os.environ.get("PATH", ""):
     os.environ["PATH"] = f"{LOCAL_BIN_DIR}{os.pathsep}{os.environ.get('PATH', '')}"
+
+PID_FILE = Path(__file__).parent / ".server.pid"
+
+
+def _write_pid_file():
+    try:
+        PID_FILE.write_text(str(os.getpid()), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _remove_pid_file():
+    try:
+        if PID_FILE.exists():
+            PID_FILE.unlink()
+    except Exception:
+        pass
+
+
+atexit.register(_remove_pid_file)
 
 TOOL_DOWNLOAD_URLS = {
     "yt-dlp": {
@@ -757,6 +778,35 @@ def settings_endpoint():
         return jsonify(s)
 
 
+@app.route("/shutdown", methods=["POST"])
+def shutdown_server():
+    """Cleanly shut down the STU Media Downloader backend server."""
+    with active_downloads_lock:
+        running = [tid for tid, info in active_downloads.items() if info.get("status") == "downloading"]
+
+    data = request.get_json(silent=True) or {}
+    if running and not data.get("force"):
+        return jsonify({
+            "success": False,
+            "error": "Active downloads in progress. Use force=True to terminate anyway.",
+            "active_count": len(running),
+        }), 409
+
+    def _delayed_exit():
+        time.sleep(0.4)
+        _remove_pid_file()
+        os._exit(0)
+
+    # In test mode, don't kill the test process
+    if not app.config.get("TESTING"):
+        threading.Thread(target=_delayed_exit, daemon=True).start()
+
+    return jsonify({
+        "success": True,
+        "message": "STU Media Downloader backend is shutting down."
+    })
+
+
 @app.route("/info", methods=["GET"])
 def get_media_info():
     url = request.args.get("url")
@@ -1125,6 +1175,7 @@ def verify_external_tools():
 
 
 if __name__ == "__main__":
+    _write_pid_file()
     init_db()
     check_and_update_ytdlp()
     verify_external_tools()

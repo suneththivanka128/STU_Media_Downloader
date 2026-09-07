@@ -67,6 +67,8 @@ const settingQuality = document.getElementById("settingQuality");
 const settingDownloadDir = document.getElementById("settingDownloadDir");
 const settingDownloadDirText = document.getElementById("settingDownloadDirText");
 const btnOpenDownloadsFolder = document.getElementById("btnOpenDownloadsFolder");
+const settingServerStatus = document.getElementById("settingServerStatus");
+const btnShutdownServer = document.getElementById("btnShutdownServer");
 const btnSaveSettings = document.getElementById("btnSaveSettings");
 
 // ============================================================
@@ -95,6 +97,8 @@ async function checkServerHealth() {
       if (data.ytdlp_update) {
         handleYtdlpUpdateNotice(data.ytdlp_update);
       }
+      if (settingServerStatus) settingServerStatus.textContent = "Server active on port 5000";
+      if (btnShutdownServer) btnShutdownServer.disabled = false;
       return true;
     }
   } catch (err) {
@@ -104,6 +108,8 @@ async function checkServerHealth() {
   statusDot.className = "status-dot offline";
   statusText.textContent = "Offline";
   serverAlert.classList.remove("hidden");
+  if (settingServerStatus) settingServerStatus.textContent = "Server is offline";
+  if (btnShutdownServer) btnShutdownServer.disabled = true;
   return false;
 }
 
@@ -289,6 +295,58 @@ function setupEventListeners() {
 
   if (btnCheckEngineUpdate) {
     btnCheckEngineUpdate.addEventListener("click", checkEngineUpdate);
+  }
+
+  // Server Shutdown Listener
+  if (btnShutdownServer) {
+    btnShutdownServer.addEventListener("click", shutdownBackendServer);
+  }
+}
+
+async function shutdownBackendServer() {
+  if (!isBackendOnline) {
+    showToast("Server is already offline");
+    return;
+  }
+
+  const confirmed = confirm("Are you sure you want to stop the STU Media Downloader backend server?");
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/shutdown`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force: false }),
+    });
+
+    if (res.status === 409) {
+      const forceConfirm = confirm("⚠️ Downloads are currently in progress! Do you want to force stop the server anyway?");
+      if (forceConfirm) {
+        await fetch(`${API_BASE}/shutdown`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ force: true }),
+        });
+      } else {
+        return;
+      }
+    }
+
+    isBackendOnline = false;
+    statusDot.className = "status-dot offline";
+    statusText.textContent = "Offline";
+    serverAlert.classList.remove("hidden");
+    if (settingServerStatus) settingServerStatus.textContent = "Server is offline";
+    if (btnShutdownServer) btnShutdownServer.disabled = true;
+    showToast("🛑 STU Downloader backend stopped successfully");
+  } catch (e) {
+    isBackendOnline = false;
+    statusDot.className = "status-dot offline";
+    statusText.textContent = "Offline";
+    serverAlert.classList.remove("hidden");
+    if (settingServerStatus) settingServerStatus.textContent = "Server is offline";
+    if (btnShutdownServer) btnShutdownServer.disabled = true;
+    showToast("🛑 Backend server stopped");
   }
 }
 
