@@ -243,15 +243,39 @@ TOOL_DOWNLOAD_URLS = {
         "Windows": {
             "url": "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip",
             "archive_type": "zip",
-            "inner_path": "aria2-1.37.0-win-64bit-build1/aria2c.exe",
+            "inner_path": "aria2c.exe",
+            "sha256": None,
+        },
+        "Linux": {
+            "url": "https://github.com/q3aql/aria2-static-builds/releases/download/v1.37.0/aria2-1.37.0-linux-gnu-64bit-build1.tar.bz2",
+            "archive_type": "tar.bz2",
+            "inner_path": "aria2c",
+            "sha256": None,
+        },
+        "Darwin": {
+            "url": "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-osx-darwin.tar.bz2",
+            "archive_type": "tar.bz2",
+            "inner_path": "aria2c",
             "sha256": None,
         },
     },
     "ffmpeg": {
         "Windows": {
-            "url": "https://github.com/GyanD/codexffmpeg/releases/download/7.0.2/ffmpeg-7.0.2-essentials_build.zip",
+            "url": "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
             "archive_type": "zip",
-            "inner_path": "ffmpeg-7.0.2-essentials_build/bin/ffmpeg.exe",
+            "inner_path": "bin/ffmpeg.exe",
+            "sha256": None,
+        },
+        "Linux": {
+            "url": "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz",
+            "archive_type": "tar.xz",
+            "inner_path": "bin/ffmpeg",
+            "sha256": None,
+        },
+        "Darwin": {
+            "url": "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-macos64-gpl.zip",
+            "archive_type": "zip",
+            "inner_path": "bin/ffmpeg",
             "sha256": None,
         },
     },
@@ -310,6 +334,7 @@ def get_tool_path(tool_name: str) -> str:
 def _download_tool(tool_name: str) -> str:
     import urllib.request
     import zipfile
+    import tarfile
     import tempfile
 
     LOCAL_BIN_DIR.mkdir(exist_ok=True)
@@ -340,13 +365,54 @@ def _download_tool(tool_name: str) -> str:
             tmp_zip_path = tmp.name
         try:
             _verify_checksum(tmp_zip_path, expected_sha256, f"{tool_name} (archive)")
+            inner_path = config.get("inner_path")
             with zipfile.ZipFile(tmp_zip_path) as zf:
-                inner_path = config["inner_path"]
-                with zf.open(inner_path) as src, open(dest, "wb") as out:
+                target_info = None
+                for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    normalized = info.filename.replace("\\", "/")
+                    if inner_path and (normalized == inner_path or normalized.endswith("/" + inner_path)):
+                        target_info = info
+                        break
+                    elif os.path.basename(normalized) == local_name:
+                        target_info = info
+                        break
+                if not target_info:
+                    raise RuntimeError(f"Could not find {tool_name} inside downloaded zip archive")
+                with zf.open(target_info) as src, open(dest, "wb") as out:
                     shutil.copyfileobj(src, out)
         finally:
             if os.path.exists(tmp_zip_path):
                 os.remove(tmp_zip_path)
+    elif archive_type.startswith("tar"):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".tar") as tmp:
+            urllib.request.urlretrieve(url, tmp.name)
+            tmp_tar_path = tmp.name
+        try:
+            _verify_checksum(tmp_tar_path, expected_sha256, f"{tool_name} (archive)")
+            inner_path = config.get("inner_path")
+            with tarfile.open(tmp_tar_path, "r:*") as tf:
+                target_member = None
+                for member in tf.getmembers():
+                    if not member.isfile():
+                        continue
+                    normalized = member.name.replace("\\", "/")
+                    if inner_path and (normalized == inner_path or normalized.endswith("/" + inner_path)):
+                        target_member = member
+                        break
+                    elif os.path.basename(normalized) == local_name:
+                        target_member = member
+                        break
+                if not target_member:
+                    raise RuntimeError(f"Could not find {tool_name} inside downloaded tar archive")
+                f = tf.extractfile(target_member)
+                if f:
+                    with open(dest, "wb") as out:
+                        shutil.copyfileobj(f, out)
+        finally:
+            if os.path.exists(tmp_tar_path):
+                os.remove(tmp_tar_path)
     else:
         raise RuntimeError(f"Unsupported archive_type '{archive_type}' for {tool_name}")
 
@@ -1049,19 +1115,13 @@ def check_and_update_ytdlp() -> dict:
 
 
 def verify_external_tools():
-    """Verify presence of helper tools (ffmpeg, aria2c) and auto-download on Windows if missing."""
-    system_os = platform.system()
+    """Verify presence of helper tools (ffmpeg, aria2c) and auto-download if missing on any platform."""
     for tool in ("ffmpeg", "aria2c"):
         try:
             path = get_tool_path(tool)
             print(f"⚡ [Tool Check] {tool} ready: {path}")
         except Exception as e:
-            if system_os == "Windows":
-                print(f"⚠️ [Tool Check] Could not auto-download {tool} on Windows: {e}")
-            elif system_os == "Linux":
-                print(f"💡 [Tool Check] {tool} not found. Recommended: sudo apt install {tool}")
-            elif system_os == "Darwin":
-                print(f"💡 [Tool Check] {tool} not found. Recommended: brew install {tool}")
+            print(f"⚠️ [Tool Check] Could not auto-download {tool}: {e}")
 
 
 if __name__ == "__main__":
