@@ -1271,6 +1271,95 @@ def open_folder():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/pick-folder", methods=["GET", "POST"])
+def pick_folder():
+    """Open native OS folder selection dialog and return the chosen path."""
+    data = (request.get_json(silent=True) or {}) if request.is_json else {}
+    initial_dir = data.get("current_dir") or str(DOWNLOADS_DIR)
+    if not os.path.exists(initial_dir):
+        initial_dir = str(DOWNLOADS_DIR)
+
+    system_os = platform.system()
+    selected_path = None
+
+    try:
+        if system_os == "Linux":
+            if shutil.which("zenity"):
+                cmd = ["zenity", "--file-selection", "--directory", "--title=Select STU Download Folder"]
+                if os.path.isdir(initial_dir):
+                    cmd.append(f"--filename={os.path.abspath(initial_dir)}/")
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+                if res.returncode == 0 and res.stdout.strip():
+                    selected_path = res.stdout.strip()
+            elif shutil.which("kdialog"):
+                cmd = ["kdialog", "--getexistingdirectory", initial_dir, "--title", "Select STU Download Folder"]
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+                if res.returncode == 0 and res.stdout.strip():
+                    selected_path = res.stdout.strip()
+            else:
+                try:
+                    import tkinter as tk
+                    from tkinter import filedialog
+                    root = tk.Tk()
+                    root.withdraw()
+                    root.attributes("-topmost", True)
+                    selected_path = filedialog.askdirectory(initialdir=initial_dir, title="Select STU Download Folder")
+                    root.destroy()
+                except Exception as tk_err:
+                    print(f"Tkinter file dialog failed: {tk_err}")
+
+        elif system_os == "Darwin":
+            script = f'set f to (choose folder default location "{initial_dir}" with prompt "Select STU Download Folder")\\nreturn POSIX path of f'
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=90)
+            if res.returncode == 0 and res.stdout.strip():
+                selected_path = res.stdout.strip().rstrip("/")
+            if not selected_path:
+                try:
+                    import tkinter as tk
+                    from tkinter import filedialog
+                    root = tk.Tk()
+                    root.withdraw()
+                    root.attributes("-topmost", True)
+                    selected_path = filedialog.askdirectory(initialdir=initial_dir, title="Select STU Download Folder")
+                    root.destroy()
+                except Exception:
+                    pass
+
+        elif system_os == "Windows":
+            ps_script = (
+                f'Add-Type -AssemblyName System.Windows.Forms;'
+                f'$dialog = New-Object System.Windows.Forms.FolderBrowserDialog;'
+                f'$dialog.Description = "Select STU Download Folder";'
+                f'$dialog.SelectedPath = "{initial_dir}";'
+                f'if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{ Write-Output $dialog.SelectedPath }}'
+            )
+            res = subprocess.run(["powershell", "-NoProfile", "-Command", ps_script], capture_output=True, text=True, timeout=90)
+            if res.returncode == 0 and res.stdout.strip():
+                selected_path = res.stdout.strip()
+            if not selected_path:
+                try:
+                    import tkinter as tk
+                    from tkinter import filedialog
+                    root = tk.Tk()
+                    root.withdraw()
+                    root.attributes("-topmost", True)
+                    selected_path = filedialog.askdirectory(initialdir=initial_dir, title="Select STU Download Folder")
+                    root.destroy()
+                except Exception:
+                    pass
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "error": "Folder selection timed out"}), 408
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    if selected_path:
+        norm_path = os.path.abspath(selected_path)
+        return jsonify({"success": True, "path": norm_path})
+    return jsonify({"success": False, "canceled": True, "path": ""})
+
+
+
 # ============================================================
 # 7. ENTRYPOINT
 # ============================================================

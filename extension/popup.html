@@ -274,10 +274,18 @@
 
           <div class="settings-item">
             <div class="settings-label">
-              <strong>Custom Folder Path</strong>
-              <small>Leave blank for system Downloads</small>
+              <strong>Custom Download Folder</strong>
+              <small id="settingCustomDirDisplay" class="settings-path-text" title="Default: System Downloads">Default: System Downloads</small>
             </div>
-            <input type="text" id="settingDownloadDir" class="settings-input" placeholder="e.g. C:\Downloads" title="Custom Download Folder" aria-label="Custom Download Folder">
+            <div class="settings-folder-actions">
+              <button type="button" class="btn-secondary btn-settings-action" id="btnBrowseFolder" title="Choose custom download folder">
+                📁 Browse...
+              </button>
+              <button type="button" class="btn-secondary btn-settings-action btn-reset-folder" id="btnResetFolder" title="Reset to default Downloads folder" style="display: none;">
+                ✕
+              </button>
+            </div>
+            <input type="hidden" id="settingDownloadDir" value="">
           </div>
 
           <div class="settings-item">

@@ -73,6 +73,9 @@ const settingFormat = document.getElementById("settingFormat");
 const settingQuality = document.getElementById("settingQuality");
 const settingDownloadDir = document.getElementById("settingDownloadDir");
 const settingDownloadDirText = document.getElementById("settingDownloadDirText");
+const settingCustomDirDisplay = document.getElementById("settingCustomDirDisplay");
+const btnBrowseFolder = document.getElementById("btnBrowseFolder");
+const btnResetFolder = document.getElementById("btnResetFolder");
 const btnOpenDownloadsFolder = document.getElementById("btnOpenDownloadsFolder");
 const settingServerStatus = document.getElementById("settingServerStatus");
 const btnShutdownServer = document.getElementById("btnShutdownServer");
@@ -330,6 +333,74 @@ function setupEventListeners() {
   btnSaveSettings.addEventListener("click", saveSettings);
   if (btnOpenDownloadsFolder) {
     btnOpenDownloadsFolder.addEventListener("click", () => openFolder(""));
+  }
+
+  // Native OS Folder Picker
+  if (btnBrowseFolder) {
+    btnBrowseFolder.addEventListener("click", async () => {
+      if (!isBackendOnline) {
+        showToast("⚠️ Backend offline — start STU Downloader server first");
+        return;
+      }
+      const prevHtml = btnBrowseFolder.innerHTML;
+      btnBrowseFolder.innerHTML = "⏳ Choosing...";
+      btnBrowseFolder.disabled = true;
+      try {
+        const currentDir = settingDownloadDir ? settingDownloadDir.value.trim() : "";
+        const res = await fetch(`${API_BASE}/pick-folder`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ current_dir: currentDir }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.path) {
+            if (settingDownloadDir) settingDownloadDir.value = data.path;
+            if (settingCustomDirDisplay) {
+              settingCustomDirDisplay.textContent = data.path;
+              settingCustomDirDisplay.title = data.path;
+            }
+            if (settingDownloadDirText) {
+              settingDownloadDirText.textContent = data.path;
+              settingDownloadDirText.title = data.path;
+            }
+            if (btnResetFolder) btnResetFolder.style.display = "inline-flex";
+            await saveSettings();
+            const folderName = data.path.split(/[/\\]/).filter(Boolean).pop() || data.path;
+            showToast(`📁 Download folder set: ${folderName}`);
+          } else if (data.canceled) {
+            // User cancelled dialog
+          } else if (data.error) {
+            showToast(`⚠️ ${data.error}`);
+          }
+        } else {
+          showToast("⚠️ Could not open folder selection");
+        }
+      } catch (e) {
+        console.error("Folder picker request error:", e);
+        showToast("⚠️ Could not reach backend folder picker");
+      } finally {
+        btnBrowseFolder.innerHTML = prevHtml;
+        btnBrowseFolder.disabled = false;
+      }
+    });
+  }
+
+  if (btnResetFolder) {
+    btnResetFolder.addEventListener("click", async () => {
+      if (settingDownloadDir) settingDownloadDir.value = "";
+      if (settingCustomDirDisplay) {
+        settingCustomDirDisplay.textContent = "Default: System Downloads";
+        settingCustomDirDisplay.title = "Default: System Downloads";
+      }
+      if (settingDownloadDirText) {
+        settingDownloadDirText.textContent = "System Downloads";
+        settingDownloadDirText.title = "System Downloads";
+      }
+      btnResetFolder.style.display = "none";
+      await saveSettings();
+      showToast("↺ Restored default Downloads folder");
+    });
   }
 
   // Engine Update Listeners
@@ -940,11 +1011,20 @@ async function loadAndApplySettings() {
       settingQuality.value = settings.default_quality;
       qualitySelect.value = settings.default_quality;
     }
+    const customDir = settings.download_dir || "";
     if (settingDownloadDirText) {
-      settingDownloadDirText.textContent = settings.download_dir || "System Downloads";
+      settingDownloadDirText.textContent = customDir || "System Downloads";
+      settingDownloadDirText.title = customDir || "System Downloads";
     }
     if (settingDownloadDir) {
-      settingDownloadDir.value = settings.download_dir || "";
+      settingDownloadDir.value = customDir;
+    }
+    if (settingCustomDirDisplay) {
+      settingCustomDirDisplay.textContent = customDir || "Default: System Downloads";
+      settingCustomDirDisplay.title = customDir || "Default: System Downloads";
+    }
+    if (btnResetFolder) {
+      btnResetFolder.style.display = customDir ? "inline-flex" : "none";
     }
   }
 }
@@ -964,6 +1044,14 @@ async function saveSettings() {
   qualitySelect.value = payload.default_quality;
   if (settingDownloadDirText) {
     settingDownloadDirText.textContent = payload.download_dir || "System Downloads";
+    settingDownloadDirText.title = payload.download_dir || "System Downloads";
+  }
+  if (settingCustomDirDisplay) {
+    settingCustomDirDisplay.textContent = payload.download_dir || "Default: System Downloads";
+    settingCustomDirDisplay.title = payload.download_dir || "Default: System Downloads";
+  }
+  if (btnResetFolder) {
+    btnResetFolder.style.display = payload.download_dir ? "inline-flex" : "none";
   }
 
   if (chrome && chrome.storage && chrome.storage.local) {
@@ -981,6 +1069,7 @@ async function saveSettings() {
         const savedData = await res.json();
         if (savedData && savedData.settings && savedData.settings.download_dir && settingDownloadDirText) {
           settingDownloadDirText.textContent = savedData.settings.download_dir;
+          settingDownloadDirText.title = savedData.settings.download_dir;
         }
         showToast("💾 Settings saved successfully!");
         return;

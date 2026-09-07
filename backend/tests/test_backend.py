@@ -235,3 +235,39 @@ def test_check_app_update_prod_mode_mock(client, monkeypatch):
     finally:
         app.config.pop("IS_DEV_MODE", None)
 
+
+def test_pick_folder_selected(client, monkeypatch, tmp_path):
+    import subprocess
+    target_dir = str(tmp_path)
+
+    class MockProcess:
+        returncode = 0
+        stdout = f"{target_dir}\n"
+        stderr = ""
+
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: MockProcess())
+
+    res = client.post("/pick-folder", json={"current_dir": str(tmp_path)})
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert data["path"] == target_dir
+
+
+def test_pick_folder_canceled(client, monkeypatch):
+    import subprocess
+
+    class MockProcess:
+        returncode = 1
+        stdout = ""
+        stderr = ""
+
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: MockProcess())
+
+    res = client.post("/pick-folder", json={})
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is False
+    assert data["canceled"] is True
+
+
