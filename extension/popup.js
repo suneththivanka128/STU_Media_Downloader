@@ -364,7 +364,7 @@ function setupEventListeners() {
               settingDownloadDirText.textContent = data.path;
               settingDownloadDirText.title = data.path;
             }
-            if (btnResetFolder) btnResetFolder.style.display = "inline-flex";
+            if (btnResetFolder) btnResetFolder.classList.remove("hidden");
             await saveSettings();
             const folderName = data.path.split(/[/\\]/).filter(Boolean).pop() || data.path;
             showToast(`📁 Download folder set: ${folderName}`);
@@ -397,7 +397,7 @@ function setupEventListeners() {
         settingDownloadDirText.textContent = "System Downloads";
         settingDownloadDirText.title = "System Downloads";
       }
-      btnResetFolder.style.display = "none";
+      btnResetFolder.classList.add("hidden");
       await saveSettings();
       showToast("↺ Restored default Downloads folder");
     });
@@ -1024,7 +1024,7 @@ async function loadAndApplySettings() {
       settingCustomDirDisplay.title = customDir || "Default: System Downloads";
     }
     if (btnResetFolder) {
-      btnResetFolder.style.display = customDir ? "inline-flex" : "none";
+      btnResetFolder.classList.toggle("hidden", !customDir);
     }
   }
 }
@@ -1051,7 +1051,7 @@ async function saveSettings() {
     settingCustomDirDisplay.title = payload.download_dir || "Default: System Downloads";
   }
   if (btnResetFolder) {
-    btnResetFolder.style.display = payload.download_dir ? "inline-flex" : "none";
+    btnResetFolder.classList.toggle("hidden", !payload.download_dir);
   }
 
   if (chrome && chrome.storage && chrome.storage.local) {
