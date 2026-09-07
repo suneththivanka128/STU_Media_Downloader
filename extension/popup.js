@@ -248,16 +248,80 @@ function setupEventListeners() {
     }
   });
 
-  // Paste from clipboard — does not auto-scan until user clicks Scan or presses Enter
-  btnPaste.addEventListener("click", async () => {
+  /**
+   * Cross-platform, OS-aware clipboard reader.
+   * Tier 1: Modern navigator.clipboard.readText() (enabled via "clipboardRead" in manifest)
+   * Tier 2: document.execCommand('paste') via focused offscreen textarea fallback
+   * Tier 3: Native OS clipboard bridge via backend GET /clipboard (Linux Wayland/X11, macOS, Windows)
+   */
+  async function readClipboardText() {
+    // 1. Try browser async clipboard API
     try {
-      const text = await navigator.clipboard.readText();
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const clip = await navigator.clipboard.readText();
+        if (clip && clip.trim()) {
+          return clip.trim();
+        }
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.readText error (trying fallback):", err);
+    }
+
+    // 2. Try document.execCommand('paste') via an offscreen probe element
+    try {
+      const prevFocused = document.activeElement;
+      const probe = document.createElement("textarea");
+      probe.setAttribute("aria-hidden", "true");
+      probe.classList.add("hidden");
+      document.body.appendChild(probe);
+      probe.focus();
+      const success = document.execCommand("paste");
+      const val = probe.value;
+      document.body.removeChild(probe);
+      if (prevFocused && typeof prevFocused.focus === "function") {
+        prevFocused.focus();
+      }
+      if (success && val && val.trim()) {
+        return val.trim();
+      }
+    } catch (err) {
+      console.warn("document.execCommand paste failed (trying OS bridge):", err);
+    }
+
+    // 3. Try OS-level clipboard from local backend (Wayland, X11, macOS, Windows)
+    if (isBackendOnline) {
+      try {
+        const res = await fetch(`${API_BASE}/clipboard`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.text && data.text.trim()) {
+            return data.text.trim();
+          }
+        }
+      } catch (err) {
+        console.warn("Backend /clipboard fetch failed:", err);
+      }
+    }
+
+    return "";
+  }
+
+  // Paste from clipboard — cross-platform & OS-aware
+  btnPaste.addEventListener("click", async () => {
+    btnPaste.disabled = true;
+    try {
+      const text = await readClipboardText();
       if (text) {
-        mediaUrlInput.value = text.trim();
+        mediaUrlInput.value = text;
+        mediaUrlInput.focus();
         showToast("URL pasted! Click 'Scan Media' or press Enter 🔍");
+      } else {
+        showToast("📋 Clipboard is empty or no text found");
       }
     } catch (e) {
-      showToast("Unable to read clipboard");
+      showToast("⚠️ Unable to read clipboard");
+    } finally {
+      btnPaste.disabled = false;
     }
   });
 

@@ -271,3 +271,12 @@ def test_pick_folder_canceled(client, monkeypatch):
     assert data["canceled"] is True
 
 
+def test_get_clipboard(client):
+    res = client.get("/clipboard")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert "text" in data
+
+
+

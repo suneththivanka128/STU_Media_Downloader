@@ -111,6 +111,7 @@ STU_Media_Downloader/
 | `POST` | `/shutdown` | Cleanly stops the backend server process and cleans up PID file |
 | `POST` | `/open-folder` | Opens downloaded file's enclosing directory in OS file explorer |
 | `GET/POST` | `/pick-folder` | Opens native OS folder selection dialog (Linux/macOS/Windows) and returns path |
+| `GET` | `/clipboard` | Reads system clipboard cross-platform (Linux Wayland/X11, macOS, Windows) |
 
 ---
 
@@ -122,7 +123,7 @@ Run the complete test suite using `pytest`:
 ./backend/venv/bin/pytest backend/tests/test_backend.py -v
 ```
 
-All 14 tests verify database operations, health endpoints, path traversal security, task cancellations, settings persistence, server shutdown, app update checks, and folder picker operations.
+All 15 tests verify database operations, health endpoints, path traversal security, task cancellations, settings persistence, server shutdown, app update checks, folder picker, and cross-platform clipboard reading.
 
 ---
 

@@ -1359,6 +1359,84 @@ def pick_folder():
     return jsonify({"success": False, "canceled": True, "path": ""})
 
 
+@app.route("/clipboard", methods=["GET"])
+def get_clipboard():
+    """Read system clipboard text across Linux, macOS, and Windows."""
+    system_os = platform.system()
+    text = ""
+    try:
+        if system_os == "Linux":
+            # 1. Wayland wl-paste
+            if shutil.which("wl-paste"):
+                res = subprocess.run(["wl-paste", "--no-newline"], capture_output=True, text=True, timeout=2)
+                if res.returncode == 0 and res.stdout:
+                    text = res.stdout
+            # 2. X11 xclip
+            if not text and shutil.which("xclip"):
+                res = subprocess.run(["xclip", "-selection", "clipboard", "-o"], capture_output=True, text=True, timeout=2)
+                if res.returncode == 0 and res.stdout:
+                    text = res.stdout
+            # 3. X11 xsel
+            if not text and shutil.which("xsel"):
+                res = subprocess.run(["xsel", "-b", "-o"], capture_output=True, text=True, timeout=2)
+                if res.returncode == 0 and res.stdout:
+                    text = res.stdout
+            # 4. Fallback: Tkinter
+            if not text:
+                try:
+                    import tkinter as tk
+                    root = tk.Tk()
+                    root.withdraw()
+                    try:
+                        text = root.clipboard_get()
+                    except Exception:
+                        text = ""
+                    root.destroy()
+                except Exception:
+                    pass
+
+        elif system_os == "Darwin":
+            if shutil.which("pbpaste"):
+                res = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=2)
+                if res.returncode == 0 and res.stdout:
+                    text = res.stdout
+            if not text:
+                try:
+                    import tkinter as tk
+                    root = tk.Tk()
+                    root.withdraw()
+                    try:
+                        text = root.clipboard_get()
+                    except Exception:
+                        text = ""
+                    root.destroy()
+                except Exception:
+                    pass
+
+        elif system_os == "Windows":
+            ps_cmd = ["powershell", "-NoProfile", "-Command", "Get-Clipboard"]
+            res = subprocess.run(ps_cmd, capture_output=True, text=True, timeout=2)
+            if res.returncode == 0 and res.stdout:
+                text = res.stdout.rstrip("\r\n")
+            if not text:
+                try:
+                    import tkinter as tk
+                    root = tk.Tk()
+                    root.withdraw()
+                    try:
+                        text = root.clipboard_get()
+                    except Exception:
+                        text = ""
+                    root.destroy()
+                except Exception:
+                    pass
+
+        return jsonify({"success": True, "text": text.strip()})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e), "text": ""})
+
+
+
 
 # ============================================================
 # 7. ENTRYPOINT
