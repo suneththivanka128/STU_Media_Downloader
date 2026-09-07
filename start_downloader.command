@@ -27,4 +27,16 @@ echo "🔍 Checking for yt-dlp updates (yt-dlp -U)..."
 ./backend/venv/bin/yt-dlp -U 2>/dev/null || true
 
 echo "🚀 Starting backend server on http://127.0.0.1:5000 ..."
-./backend/venv/bin/python3 backend/app.py
+
+# Mode switch: Run with --dev for development mode, otherwise defaults to Production Mode
+MODE_FLAG="--prod"
+if [ "$1" = "--dev" ]; then
+    MODE_FLAG=""
+    echo "⚙️ Launching in Development Mode (debug=True)..."
+fi
+
+# [Default] Production Mode — Fast, multi-threaded WSGI server via Waitress (No dev warnings)
+./backend/venv/bin/python3 backend/app.py $MODE_FLAG
+
+# [Optional] Development Mode (Auto-reloads on file save)
+# ./backend/venv/bin/python3 backend/app.py
