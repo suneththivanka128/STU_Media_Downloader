@@ -69,14 +69,13 @@ STU_Media_Downloader/
 ├── start_downloader.command       # macOS launcher script (with auto-update check)
 ├── stop_downloader.command        # macOS server stop script
 ├── STU-Media-Downloader.desktop   # Linux desktop application shortcut
-├── app.py                         # Root entrypoint proxy (kept in sync with backend/app.py)
 ├── backend/
 │   ├── app.py                     # Flask server, SQLAlchemy models, download engine & SSE
 │   ├── requirements.txt           # Python dependencies (Flask, SQLAlchemy, yt-dlp, etc.)
 │   ├── bin/                       # Self-healed binaries directory (.gitkeep)
 │   ├── Downloads/                 # Default media output directory (.gitkeep)
 │   └── tests/
-│       └── test_backend.py        # Automated test suite (Pytest - 8 unit tests)
+│       └── test_backend.py        # Automated test suite (Pytest - 15 unit tests)
 ├── extension/
 │   ├── manifest.json              # Chrome Extension Manifest V3 configuration
 │   ├── background.js              # Background service worker (handles auto-opening popup)
