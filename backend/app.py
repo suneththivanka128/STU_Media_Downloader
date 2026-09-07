@@ -1274,6 +1274,7 @@ def open_folder():
 @app.route("/pick-folder", methods=["GET", "POST"])
 def pick_folder():
     """Open native OS folder selection dialog and return the chosen path."""
+    global DOWNLOADS_DIR
     data = (request.get_json(silent=True) or {}) if request.is_json else {}
     initial_dir = data.get("current_dir") or str(DOWNLOADS_DIR)
     if not os.path.exists(initial_dir):
@@ -1355,6 +1356,17 @@ def pick_folder():
 
     if selected_path:
         norm_path = os.path.abspath(selected_path)
+        try:
+            p = Path(norm_path).expanduser().resolve()
+            p.mkdir(parents=True, exist_ok=True)
+            DOWNLOADS_DIR = p
+            # Auto-persist directly to backend settings so popup closing cannot lose the change
+            s = load_settings()
+            s["download_dir"] = str(p)
+            save_settings_to_file(s)
+            print(f"[Settings] Picked download folder auto-saved to backend settings: {p}")
+        except Exception as e:
+            print(f"[Settings] Warning: failed to auto-save chosen directory: {e}")
         return jsonify({"success": True, "path": norm_path})
     return jsonify({"success": False, "canceled": True, "path": ""})
 

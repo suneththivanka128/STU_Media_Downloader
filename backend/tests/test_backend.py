@@ -238,6 +238,7 @@ def test_check_app_update_prod_mode_mock(client, monkeypatch):
 
 def test_pick_folder_selected(client, monkeypatch, tmp_path):
     import subprocess
+    from app import load_settings
     target_dir = str(tmp_path)
 
     class MockProcess:
@@ -252,6 +253,9 @@ def test_pick_folder_selected(client, monkeypatch, tmp_path):
     data = res.get_json()
     assert data["success"] is True
     assert data["path"] == target_dir
+    # Verify auto-persistence
+    s = load_settings()
+    assert s["download_dir"] == target_dir
 
 
 def test_pick_folder_canceled(client, monkeypatch):

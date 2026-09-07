@@ -141,6 +141,35 @@ body {
   letter-spacing: 0.2px;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-icon-header {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  transition: all var(--transition-fast);
+}
+
+.btn-icon-header:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-indigo-light);
+  background: rgba(99, 102, 241, 0.22);
+  transform: scale(1.06);
+}
+
 /* Radar Live Status Indicator */
 .status-indicator {
   display: flex;

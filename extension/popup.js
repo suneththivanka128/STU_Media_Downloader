@@ -20,6 +20,7 @@ const queueBadge = document.getElementById("queueBadge");
 
 const mediaUrlInput = document.getElementById("mediaUrl");
 const btnPaste = document.getElementById("btnPaste");
+const btnOpenInTab = document.getElementById("btnOpenInTab");
 const btnScanMedia = document.getElementById("btnScanMedia");
 const btnUseActiveTab = document.getElementById("btnUseActiveTab");
 const scanSpinner = document.getElementById("scanSpinner");
@@ -399,6 +400,17 @@ function setupEventListeners() {
     btnOpenDownloadsFolder.addEventListener("click", () => openFolder(""));
   }
 
+  // Open Extension in Dedicated Tab
+  if (btnOpenInTab) {
+    btnOpenInTab.addEventListener("click", () => {
+      if (chrome && chrome.tabs && typeof chrome.tabs.create === "function") {
+        chrome.tabs.create({ url: chrome.runtime.getURL("popup.html") });
+      } else {
+        window.open(window.location.href, "_blank");
+      }
+    });
+  }
+
   // Native OS Folder Picker
   if (btnBrowseFolder) {
     btnBrowseFolder.addEventListener("click", async () => {
@@ -409,6 +421,7 @@ function setupEventListeners() {
       const prevHtml = btnBrowseFolder.innerHTML;
       btnBrowseFolder.innerHTML = "⏳ Choosing...";
       btnBrowseFolder.disabled = true;
+      showToast("📁 Folder picker opened! Selection auto-saves on backend.", 4000);
       try {
         const currentDir = settingDownloadDir ? settingDownloadDir.value.trim() : "";
         const res = await fetch(`${API_BASE}/pick-folder`, {
@@ -442,7 +455,6 @@ function setupEventListeners() {
         }
       } catch (e) {
         console.error("Folder picker request error:", e);
-        showToast("⚠️ Could not reach backend folder picker");
       } finally {
         btnBrowseFolder.innerHTML = prevHtml;
         btnBrowseFolder.disabled = false;
@@ -1047,7 +1059,12 @@ async function loadAndApplySettings() {
   if (isBackendOnline) {
     try {
       const res = await fetch(`${API_BASE}/settings`);
-      if (res.ok) settings = await res.json();
+      if (res.ok) {
+        settings = await res.json();
+        if (chrome && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({ userSettings: settings });
+        }
+      }
     } catch (e) {
       console.warn("Could not fetch settings from backend:", e);
     }
