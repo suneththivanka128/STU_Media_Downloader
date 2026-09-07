@@ -229,6 +229,9 @@ def write_history_entry(title, source_url, thumbnail_url, file_path,
 # ============================================================
 
 LOCAL_BIN_DIR = Path(__file__).parent / "bin"
+LOCAL_BIN_DIR.mkdir(exist_ok=True)
+if str(LOCAL_BIN_DIR) not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = f"{LOCAL_BIN_DIR}{os.pathsep}{os.environ.get('PATH', '')}"
 
 TOOL_DOWNLOAD_URLS = {
     "yt-dlp": {
@@ -1045,9 +1048,26 @@ def check_and_update_ytdlp() -> dict:
         return ytdlp_update_state
 
 
+def verify_external_tools():
+    """Verify presence of helper tools (ffmpeg, aria2c) and auto-download on Windows if missing."""
+    system_os = platform.system()
+    for tool in ("ffmpeg", "aria2c"):
+        try:
+            path = get_tool_path(tool)
+            print(f"⚡ [Tool Check] {tool} ready: {path}")
+        except Exception as e:
+            if system_os == "Windows":
+                print(f"⚠️ [Tool Check] Could not auto-download {tool} on Windows: {e}")
+            elif system_os == "Linux":
+                print(f"💡 [Tool Check] {tool} not found. Recommended: sudo apt install {tool}")
+            elif system_os == "Darwin":
+                print(f"💡 [Tool Check] {tool} not found. Recommended: brew install {tool}")
+
+
 if __name__ == "__main__":
     init_db()
     check_and_update_ytdlp()
+    verify_external_tools()
 
     if "--prod" in sys.argv:
         from waitress import serve

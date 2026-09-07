@@ -22,6 +22,14 @@ if command -v lsof >/dev/null 2>&1; then
     fi
 fi
 
+# Check optional acceleration & conversion tools
+if ! command -v ffmpeg >/dev/null 2>&1; then
+    echo "💡 [Tip] ffmpeg is recommended for video merging and audio conversion (sudo apt install ffmpeg)"
+fi
+if ! command -v aria2c >/dev/null 2>&1; then
+    echo "💡 [Tip] aria2 is recommended for multi-connection download boost (sudo apt install aria2)"
+fi
+
 # Check and update yt-dlp
 echo "🔍 Checking for yt-dlp updates (yt-dlp -U)..."
 ./backend/venv/bin/yt-dlp -U 2>/dev/null || true
