@@ -358,29 +358,6 @@ function setupEventListeners() {
     speedBadge.textContent = `⚡ ${val}x Connections`;
   });
 
-  // Quick Preset Chips Handler
-  const presetChips = document.querySelectorAll(".preset-chip");
-  presetChips.forEach((chip) => {
-    chip.addEventListener("click", () => {
-      const fmt = chip.getAttribute("data-format");
-      const q = chip.getAttribute("data-quality");
-      if (fmt && formatSelect) formatSelect.value = fmt;
-      if (q && qualitySelect) qualitySelect.value = q;
-      presetChips.forEach((c) => c.classList.remove("active"));
-      chip.classList.add("active");
-    });
-  });
-
-  function syncPresetChips() {
-    presetChips.forEach((chip) => {
-      const matchFmt = chip.getAttribute("data-format") === (formatSelect ? formatSelect.value : "");
-      const matchQ = chip.getAttribute("data-quality") === (qualitySelect ? qualitySelect.value : "");
-      chip.classList.toggle("active", matchFmt && matchQ);
-    });
-  }
-  if (formatSelect) formatSelect.addEventListener("change", syncPresetChips);
-  if (qualitySelect) qualitySelect.addEventListener("change", syncPresetChips);
-
   btnStartDownload.addEventListener("click", startDownload);
 
   // History Event Listeners
