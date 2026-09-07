@@ -48,3 +48,4 @@ if [ $STOPPED -eq 1 ]; then
 else
     echo "ℹ️ STU Media Downloader is not currently running."
 fi
+

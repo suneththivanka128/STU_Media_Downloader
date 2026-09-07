@@ -49,6 +49,9 @@ backend/bin/*
 npm-debug.log*
 yarn-debug.log*
 
+# Runtime files (generated at server startup)
+backend/.server.pid
+
 # IDE & Editor Configurations
 .idea/
 *.swp
