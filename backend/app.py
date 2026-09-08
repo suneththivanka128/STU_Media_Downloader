@@ -1562,9 +1562,50 @@ def verify_external_tools():
             print(f"⚠️ [Tool Check] Could not auto-download {tool}: {e}")
 
 
+def check_and_ensure_curl_cffi():
+    """Auto-install curl-cffi on first run if it is not already available.
+
+    curl-cffi enables yt-dlp to impersonate a real browser TLS fingerprint
+    (Chrome/Firefox), which bypasses Cloudflare and other bot-detection
+    systems.  Installation is done into the *same* Python environment that is
+    currently running so no venv activation is needed.
+    """
+    global CURL_CFFI_AVAILABLE  # noqa: PLW0603
+
+    if CURL_CFFI_AVAILABLE:
+        print("⚡ [curl-cffi] Already installed — browser impersonation active.")
+        return
+
+    print("🔄 [curl-cffi] Not found. Installing curl-cffi for browser impersonation support...")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "curl-cffi", "--quiet"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            # Re-import after successful install
+            try:
+                from curl_cffi import requests as _cr  # noqa: F401
+                CURL_CFFI_AVAILABLE = True
+                print("✅ [curl-cffi] Installed successfully — browser impersonation active.")
+            except ImportError:
+                print("⚠️ [curl-cffi] Installed but import still failed. Falling back to generic user-agent.")
+        else:
+            err = (result.stderr or result.stdout or "unknown error").strip()
+            print(f"⚠️ [curl-cffi] Auto-install failed: {err}")
+            print("   ↳ Run manually:  pip install curl-cffi")
+    except Exception as exc:
+        print(f"⚠️ [curl-cffi] Auto-install exception: {exc}")
+        print("   ↳ Run manually:  pip install curl-cffi")
+
+
 if __name__ == "__main__":
     _write_pid_file()
     init_db()
+    check_and_ensure_curl_cffi()
     check_and_update_ytdlp()
     verify_external_tools()
 
