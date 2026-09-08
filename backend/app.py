@@ -1,7 +1,7 @@
 """
 STU Media Downloader — Python Backend
 ======================================
-Flask + SQLAlchemy + aria2c + yt-dlp + ffmpeg
+Flask + SQLAlchemy + aria2c + yt-dlp + ffmpeg + curl-cffi
 
 Run (development):
     python backend/app.py
@@ -31,6 +31,14 @@ from flask_cors import CORS
 
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
+
+# Optional: curl-cffi for browser TLS impersonation (Cloudflare / bot-detection bypass)
+try:
+    from curl_cffi import requests as curl_requests  # noqa: F401
+    CURL_CFFI_AVAILABLE = True
+except ImportError:
+    CURL_CFFI_AVAILABLE = False
+
 
 
 # ============================================================
@@ -369,6 +377,21 @@ def get_tool_path(tool_name: str) -> str:
     return downloaded_path
 
 
+def ytdlp_impersonate_flags() -> list:
+    """Return yt-dlp flags to impersonate a real browser using curl-cffi.
+
+    When curl-cffi is installed, yt-dlp can send requests with a genuine
+    browser TLS fingerprint (JA3/HTTP2), which bypasses Cloudflare and
+    similar bot-detection mechanisms automatically.
+
+    Returns an empty list when curl-cffi is not installed (graceful fallback).
+    """
+    if CURL_CFFI_AVAILABLE:
+        return ["--impersonate", "chrome"]
+    return []
+
+
+
 def _download_tool(tool_name: str) -> str:
     import urllib.request
     import zipfile
@@ -575,6 +598,7 @@ def run_download_task(task_id, url, output_format, quality, connections, custom_
             "--no-mtime",
             "--trim-filenames", "60",
             "--concurrent-fragments", str(connections),
+            *ytdlp_impersonate_flags(),
         ]
 
         if output_format.lower() in ("mp3", "m4a", "wav", "flac", "aac", "opus"):
@@ -750,7 +774,8 @@ def health():
         "tools": {
             "yt_dlp": bool(shutil.which("yt-dlp") or Path(sys.executable).parent.joinpath("yt-dlp").exists()),
             "aria2c": bool(shutil.which("aria2c")),
-            "ffmpeg": bool(shutil.which("ffmpeg"))
+            "ffmpeg": bool(shutil.which("ffmpeg")),
+            "curl_cffi": CURL_CFFI_AVAILABLE,
         },
         "ytdlp_update": ytdlp_update_state
     })
@@ -991,16 +1016,23 @@ def get_media_info():
 
     try:
         yt_dlp_path = get_tool_path("yt-dlp")
-        res = subprocess.run(
-            [
-                yt_dlp_path, url,
-                "-J",
-                "--no-playlist",
-                "--no-warnings",
-                "--ignore-errors",
+        cmd_info = [
+            yt_dlp_path, url,
+            "-J",
+            "--no-playlist",
+            "--no-warnings",
+            "--ignore-errors",
+            *ytdlp_impersonate_flags(),
+        ]
+        # Fall back to a generic user-agent when curl-cffi is not available
+        if not CURL_CFFI_AVAILABLE:
+            cmd_info += [
                 "--user-agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            ],
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            ]
+        res = subprocess.run(
+            cmd_info,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
