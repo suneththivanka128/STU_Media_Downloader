@@ -766,18 +766,19 @@ def run_download_task(task_id, url, output_format, quality, connections, custom_
 
 @app.route("/health", methods=["GET"])
 def health():
+    yt_dlp_bin = Path(sys.executable).parent.joinpath("yt-dlp")
     return jsonify({
         "status": "ok",
         "os": platform.system(),
         "app_version": APP_VERSION,
         "is_dev": is_dev_mode(),
         "tools": {
-            "yt_dlp": bool(shutil.which("yt-dlp") or Path(sys.executable).parent.joinpath("yt-dlp").exists()),
+            "yt_dlp": bool(shutil.which("yt-dlp") or yt_dlp_bin.exists()),
             "aria2c": bool(shutil.which("aria2c")),
             "ffmpeg": bool(shutil.which("ffmpeg")),
             "curl_cffi": CURL_CFFI_AVAILABLE,
         },
-        "ytdlp_update": ytdlp_update_state
+        "ytdlp_update": ytdlp_update_state,
     })
 
 
