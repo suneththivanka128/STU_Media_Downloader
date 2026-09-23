@@ -44,9 +44,15 @@
       return;
     }
 
-    let mediaUrl = mediaEl.currentSrc || mediaEl.src || "";
-    // If media source is an in-memory blob or data stream (YouTube, Twitter, TikTok, etc.), use page URL
-    if (!mediaUrl || mediaUrl.startsWith("blob:") || mediaUrl.startsWith("data:")) {
+    let mediaUrl    = mediaEl.currentSrc || mediaEl.src || "";
+    const isBlobUrl = !mediaUrl || mediaUrl.startsWith("blob:") || mediaUrl.startsWith("data:");
+
+    // If the video is served via HLS/MSE (blob: URL), the real stream URL is
+    // NOT in the <video> element. background.js intercepts the .ts/.m3u8 network
+    // requests and stores the constructed M3U8 URL in per-tab storage.
+    // We store the page URL as referer and flag this as an HLS page so that
+    // the popup skips the /info scan and instead shows the captured streams.
+    if (isBlobUrl) {
       mediaUrl = window.location.href;
     }
     const pageTitle = document.title || "Web Video";
@@ -56,10 +62,11 @@
       chrome.storage.local.set(
         {
           detectedMedia: {
-            url: mediaUrl,
-            pageUrl: window.location.href,
-            title: pageTitle,
+            url:       mediaUrl,
+            pageUrl:   window.location.href,
+            title:     pageTitle,
             timestamp: Date.now(),
+            isHLSPage: isBlobUrl,   // ← popup uses this to skip /info scan
           },
         },
         () => {

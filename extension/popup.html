@@ -94,6 +94,18 @@
           </button>
         </div>
 
+        <!-- Detected HLS Streams Panel (populated by background.js network interception) -->
+        <div class="detected-streams-panel hidden" id="detectedStreamsPanel">
+          <div class="detected-streams-header">
+            <span class="detected-live-dot"></span>
+            <span class="detected-streams-title">Detected HLS Streams</span>
+            <button class="btn-clear-streams" id="btnClearStreams" title="Clear detected streams">✕</button>
+          </div>
+          <div class="detected-streams-list" id="detectedStreamsList">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
         <!-- Preview Card -->
         <div class="preview-card hidden" id="previewCard">
           <div class="preview-thumb-wrap">

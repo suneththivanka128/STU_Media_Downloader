@@ -6,6 +6,7 @@ let currentTaskId = null;
 let activeEventSource = null;
 let historyCurrentPage = 1;
 let scannedMediaData = null;
+let currentPageReferer = ""; // Tracks the page URL (HTTP Referer) captured at badge-click time
 
 // DOM Elements
 const serverStatus = document.getElementById("serverStatus");
@@ -82,6 +83,11 @@ const settingServerStatus = document.getElementById("settingServerStatus");
 const btnShutdownServer = document.getElementById("btnShutdownServer");
 const btnSaveSettings = document.getElementById("btnSaveSettings");
 
+// Detected HLS Streams panel elements
+const detectedStreamsPanel = document.getElementById("detectedStreamsPanel");
+const detectedStreamsList = document.getElementById("detectedStreamsList");
+const btnClearStreams = document.getElementById("btnClearStreams");
+
 // ============================================================
 // 1. INITIALIZATION & SERVER STATUS
 // ============================================================
@@ -93,6 +99,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadAndApplySettings();
   await initializeMediaInput();
   await restoreActiveQueue();
+  await loadDetectedStreams(); // Show any M3U8 streams captured by background.js
 });
 
 async function checkServerHealth() {
@@ -187,6 +194,9 @@ function switchTab(targetId) {
     loadHistory(historyCurrentPage);
   } else if (targetId === "tab-settings") {
     loadAndApplySettings();
+  } else if (targetId === "tab-media") {
+    // Refresh detected streams every time the user comes back to the Media tab
+    loadDetectedStreams();
   }
 }
 
@@ -195,29 +205,277 @@ function switchTab(targetId) {
 // ============================================================
 
 async function initializeMediaInput() {
-  // Only scan if user explicitly clicked the overlay "⚡ Download" badge on a video
-  if (chrome && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(["detectedMedia"], (res) => {
-      if (res.detectedMedia) {
-        let candidate = res.detectedMedia.url || "";
-        if (candidate.startsWith("blob:") || candidate.startsWith("data:")) {
-          candidate = res.detectedMedia.pageUrl || "";
-        }
-        // Only load if captured recently (within last 5 minutes)
-        if (candidate && (Date.now() - (res.detectedMedia.timestamp || 0) < 300000)) {
-          mediaUrlInput.value = candidate;
-          triggerScan(candidate);
-          // Clear captured media so future popup openings won't automatically re-scan
-          chrome.storage.local.remove(["detectedMedia"]);
-          return;
+  if (!chrome || !chrome.storage || !chrome.storage.local) return;
+
+  // Get the active tab first — we need it to do per-tab stream lookup
+  let activeTab = null;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    activeTab = tab || null;
+  } catch (_) {}
+
+  chrome.storage.local.get(["detectedMedia", "detectedM3u8", "pageUrl"], (res) => {
+
+    // ── Priority 1: badge click from content.js overlay ─────────────────────
+    if (res.detectedMedia) {
+      const dm = res.detectedMedia;
+
+      // ── HLS/blob page (vixeo.io etc.) ─────────────────────────────────────
+      // blob: URL → real stream is in .ts/.m3u8 network requests (background.js).
+      // Check per-tab streams first. If found → M3U8 mode immediately.
+      // If NOT found → fall back to scanning the page URL (yt-dlp may handle it,
+      // e.g. YouTube, Vimeo). The HLS wait message only shows if the scan also fails.
+      if (dm.isHLSPage) {
+        chrome.storage.local.remove(["detectedMedia"]);
+        currentPageReferer = dm.pageUrl || "";
+
+        if (activeTab && activeTab.id) {
+          const tabKey = `streams_tab_${activeTab.id}`;
+          chrome.storage.local.get([tabKey], (tabRes) => {
+            const streams = Array.isArray(tabRes[tabKey]) ? tabRes[tabKey] : [];
+            const fresh   = streams.filter((s) => Date.now() - (s.timestamp || 0) < 30 * 60 * 1000);
+
+            if (fresh.length > 0) {
+              // ✅ Streams captured → use M3U8 directly
+              mediaUrlInput.value = fresh[0].url;
+              currentPageReferer  = fresh[0].pageUrl || currentPageReferer;
+              triggerScan(fresh[0].url);
+              renderDetectedStreams(streams, activeTab.id);
+            } else {
+              // ⬇ No streams yet → try scanning the page URL (YouTube etc. work via yt-dlp)
+              // If that scan also fails, triggerScan will call showHLSWaitMessage automatically.
+              const pageUrl = dm.pageUrl || "";
+              if (pageUrl) {
+                mediaUrlInput.value = pageUrl;
+                triggerScan(pageUrl);
+              }
+            }
+          });
         } else {
-          // Stale entry, clear it
-          chrome.storage.local.remove(["detectedMedia"]);
+          // No tab info — just scan the page URL
+          const pageUrl = dm.pageUrl || "";
+          if (pageUrl) {
+            mediaUrlInput.value = pageUrl;
+            triggerScan(pageUrl);
+          }
+        }
+        return;
+      }
+
+      // ── Normal page with a real media URL ─────────────────────────────────
+      let candidate = dm.url || "";
+      if (candidate.startsWith("blob:") || candidate.startsWith("data:")) {
+        candidate = dm.pageUrl || "";
+      }
+      if (dm.pageUrl) currentPageReferer = dm.pageUrl;
+
+      if (candidate && (Date.now() - (dm.timestamp || 0) < 300000)) {
+        mediaUrlInput.value = candidate;
+        triggerScan(candidate);
+        chrome.storage.local.remove(["detectedMedia"]);
+        return;
+      } else {
+        chrome.storage.local.remove(["detectedMedia"]);
+        currentPageReferer = "";
+      }
+    }
+
+    // ── Priority 2: per-tab stream captured by background.js webRequest ──────
+    // Use per-tab storage (keyed by tab ID) so we never show a stream from a
+    // different tab. Falls back to global detectedM3u8 only if same hostname.
+    if (activeTab && activeTab.id) {
+      const tabKey = `streams_tab_${activeTab.id}`;
+      chrome.storage.local.get([tabKey], (tabRes) => {
+        const streams = Array.isArray(tabRes[tabKey]) ? tabRes[tabKey] : [];
+        // Take the most recent fresh stream (< 30 min old)
+        const fresh = streams.find((s) => Date.now() - (s.timestamp || 0) < 30 * 60 * 1000);
+
+        if (fresh) {
+          mediaUrlInput.value = fresh.url;
+          currentPageReferer = fresh.pageUrl || "";
+          triggerScan(fresh.url);
+          return;
+        }
+
+        // ── Fallback: global detectedM3u8 (only if same tab hostname) ────────
+        if (res.detectedM3u8 && res.pageUrl) {
+          let sameSite = false;
+          try {
+            sameSite = activeTab.url &&
+              new URL(res.pageUrl).hostname === new URL(activeTab.url).hostname;
+          } catch (_) {}
+
+          if (sameSite) {
+            mediaUrlInput.value = res.detectedM3u8;
+            currentPageReferer = res.pageUrl;
+            triggerScan(res.detectedM3u8);
+          }
+        }
+      });
+    } else if (res.detectedM3u8) {
+      // No active tab info available — use global key as last resort
+      mediaUrlInput.value = res.detectedM3u8;
+      currentPageReferer = res.pageUrl || "";
+      triggerScan(res.detectedM3u8);
+    }
+  });
+}
+
+// ============================================================
+// 3b. HLS WAIT MESSAGE (blob-URL video — stream not yet captured)
+// ============================================================
+
+/**
+ * Show a friendly instruction card when the user clicked the ⚡ badge on a
+ * blob-URL video (HLS/MSE stream) but background.js hasn't captured any
+ * .ts/.m3u8 requests yet (video hasn't started playing).
+ * @param {string} pageUrl - The page URL (shown as context)
+ */
+function showHLSWaitMessage(pageUrl) {
+  let host = "";
+  try { host = pageUrl ? new URL(pageUrl).hostname : ""; } catch (_) {}
+
+  // Show the preview card as an instruction panel
+  if (previewThumb)    previewThumb.src = "icons/icon-128.png";
+  if (previewTitle)    previewTitle.textContent = "HLS Stream — Play Video First";
+  if (previewDuration) previewDuration.textContent = host ? `🌐 ${host}` : "Streaming site";
+  if (previewSource) {
+    previewSource.textContent = "⚠️ Waiting";
+    previewSource.className   = "badge badge-warn";
+  }
+  if (previewCard) previewCard.classList.remove("hidden");
+
+  // Show the streams panel in "empty + hint" mode
+  if (detectedStreamsPanel && detectedStreamsList) {
+    detectedStreamsPanel.classList.remove("hidden");
+    detectedStreamsList.innerHTML = `
+      <div style="padding:10px 4px;color:#94a3b8;font-size:11px;line-height:1.6;">
+        <strong style="color:#f59e0b;">⚠️ Stream not detected yet.</strong><br>
+        Follow these steps:<br>
+        <span style="color:#10b981;">①</span> Close this popup<br>
+        <span style="color:#10b981;">②</span> Press <strong>Play</strong> on the video<br>
+        <span style="color:#10b981;">③</span> Wait 2–3 seconds<br>
+        <span style="color:#10b981;">④</span> Click the extension icon again
+      </div>
+    `;
+  }
+
+  showToast("▶️ Play the video first, then re-open the extension!", 5000);
+}
+
+
+/**
+ * Load M3U8 URLs intercepted by background.js for the active tab and
+ * render them in the Detected Streams panel.
+ */
+async function loadDetectedStreams() {
+  if (!chrome || !chrome.tabs || !chrome.storage) return;
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) return;
+
+    const key = `streams_tab_${tab.id}`;
+    chrome.storage.local.get([key], (result) => {
+      const streams = Array.isArray(result[key]) ? result[key] : [];
+      renderDetectedStreams(streams, tab.id);
+
+      // Clear the "HLS" badge now that the user has opened the popup
+      try {
+        chrome.action.setBadgeText({ text: "", tabId: tab.id });
+      } catch (_) {
+        chrome.action.setBadgeText({ text: "" });
+      }
+    });
+  } catch (e) {
+    console.warn("loadDetectedStreams error:", e);
+  }
+}
+
+/**
+ * Render the list of detected M3U8 streams into the panel.
+ * @param {Array} streams - Array of { url, pageUrl, pageTitle, timestamp }
+ * @param {number} tabId - Active tab ID (used for clearing storage)
+ */
+function renderDetectedStreams(streams, tabId) {
+  if (!detectedStreamsPanel || !detectedStreamsList) return;
+
+  // Filter out stale entries older than 30 minutes
+  const fresh = streams.filter((s) => Date.now() - (s.timestamp || 0) < 30 * 60 * 1000);
+
+  if (fresh.length === 0) {
+    detectedStreamsPanel.classList.add("hidden");
+    return;
+  }
+
+  detectedStreamsPanel.classList.remove("hidden");
+  detectedStreamsList.innerHTML = "";
+
+  fresh.forEach((stream, idx) => {
+    const item = document.createElement("div");
+    item.className = "detected-stream-item";
+
+    // Shorten the URL for display
+    let displayUrl = stream.url;
+    try {
+      const u = new URL(stream.url);
+      displayUrl = u.pathname.split("/").slice(-2).join("/") + (u.search ? "?..." : "");
+    } catch (_) {}
+
+    let originHost = "";
+    try { originHost = new URL(stream.pageUrl).hostname; } catch (_) {}
+
+    item.innerHTML = `
+      <span class="detected-stream-icon">📡</span>
+      <div class="detected-stream-info">
+        <div class="detected-stream-label" title="${escapeHtml(stream.url)}">${escapeHtml(displayUrl)}</div>
+        ${originHost ? `<div class="detected-stream-origin">🌐 ${escapeHtml(originHost)}</div>` : ""}
+      </div>
+      <button class="btn-use-stream" data-idx="${idx}">⚡ Use</button>
+    `;
+
+    item.querySelector(".btn-use-stream").addEventListener("click", () => {
+      useDetectedStream(stream);
+    });
+
+    detectedStreamsList.appendChild(item);
+  });
+
+  // Wire up the Clear button
+  if (btnClearStreams) {
+    btnClearStreams.onclick = () => {
+      if (tabId) {
+        chrome.storage.local.remove([`streams_tab_${tabId}`, "detectedM3u8", "pageUrl"]);
+        try { chrome.action.setBadgeText({ text: "", tabId: tabId }); } catch (_) {
+          chrome.action.setBadgeText({ text: "" });
         }
       }
-      // DO NOT auto-scan or auto-fetch active tab on normal popup open
-    });
+      detectedStreamsPanel.classList.add("hidden");
+      detectedStreamsList.innerHTML = "";
+      showToast("Detected streams cleared");
+    };
   }
+}
+
+/**
+ * Pre-fill the Media tab with a detected stream URL and its referer,
+ * then trigger the HLS detection path in triggerScan().
+ */
+function useDetectedStream(stream) {
+  mediaUrlInput.value = stream.url;
+  currentPageReferer = stream.pageUrl || "";
+  triggerScan(stream.url);
+  // Clear the badge — user has acknowledged the capture
+  try {
+    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+      if (tab) chrome.action.setBadgeText({ text: "", tabId: tab.id });
+    });
+  } catch (_) {
+    chrome.action.setBadgeText({ text: "" });
+  }
+  let host = "";
+  try { host = new URL(stream.pageUrl).hostname; } catch (_) {}
+  showToast(`⚡ HLS stream loaded${host ? " from " + host : ""}`);
 }
 
 async function fetchActiveTabUrl() {
@@ -600,7 +858,59 @@ async function checkEngineUpdate() {
 }
 
 async function triggerScan(url) {
-  if (url.startsWith("blob:") || url.startsWith("data:")) return;
+  if (!url || url.startsWith("blob:") || url.startsWith("data:")) return;
+
+  // ── M3U8 / HLS direct stream ───────────────────────────────────────────────
+  // Raw M3U8 URLs can't be scanned with yt-dlp -J. Show an HLS-ready card
+  // and let the user start the download directly — no /info call needed.
+  const isM3U8 = /\.m3u8(\?|$|#)/i.test(url) ||
+                 /\/hls\//i.test(url) ||
+                 /index-v\d+-a\d+\.m3u8/i.test(url);
+
+  if (isM3U8) {
+    scannedMediaData = { title: "HLS Stream", thumbnail: "", duration: "", formats: [] };
+
+    // Build a friendly referer label
+    let refererHost = "";
+    if (currentPageReferer) {
+      try { refererHost = new URL(currentPageReferer).hostname; } catch (_) {}
+    }
+
+    // Populate preview card
+    previewTitle.textContent  = "HLS Stream (M3U8)";
+    previewThumb.src          = "icons/icon-128.png";
+    previewDuration.textContent = refererHost ? `🌐 ${refererHost}` : "Live / Stream";
+
+    // Update the source badge to show HLS
+    if (previewSource) {
+      previewSource.textContent = "📡 HLS Stream";
+      previewSource.className   = "badge badge-success";
+    }
+
+    previewCard.classList.remove("hidden");
+
+    // Label the download button to reassure the user
+    if (btnStartDownload) {
+      btnStartDownload.innerHTML = `<span>📡 Download HLS Stream</span>`;
+    }
+
+    showToast(
+      refererHost
+        ? `⚡ HLS stream ready — referer: ${refererHost}`
+        : `⚡ HLS/M3U8 stream detected — ready to download!`
+    );
+    return;
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // Restore download button text for normal URLs
+  if (btnStartDownload) {
+    btnStartDownload.innerHTML = `<span>🚀 Start Accelerated Download</span>`;
+  }
+  if (previewSource) {
+    previewSource.textContent = "Detected";
+    previewSource.className   = "badge badge-info";
+  }
 
   if (!isBackendOnline) {
     const ok = await checkServerHealth();
@@ -615,7 +925,13 @@ async function triggerScan(url) {
   btnScanMedia.disabled = true;
 
   try {
-    const res = await fetch(`${API_BASE}/info?url=${encodeURIComponent(url)}`);
+    // Include the page referer so /info can pass --referer to yt-dlp for
+    // restricted sites (e.g. vixeo.io and similar HLS-gated platforms)
+    let infoUrl = `${API_BASE}/info?url=${encodeURIComponent(url)}`;
+    if (currentPageReferer && currentPageReferer.startsWith("http")) {
+      infoUrl += `&referer=${encodeURIComponent(currentPageReferer)}`;
+    }
+    const res = await fetch(infoUrl);
     if (res.ok) {
       const data = await res.json();
       scannedMediaData = data;
@@ -623,21 +939,74 @@ async function triggerScan(url) {
       showToast(`Media loaded: ${data.title ? data.title.slice(0, 25) + "..." : "Ready to download"} ⚡`);
     } else {
       const errData = await res.json().catch(() => ({}));
-      showToast(errData.error || "Failed to extract media information ⚠️");
-      previewCard.classList.add("hidden");
-      scannedMediaData = null;
+
+      // ── Scan failed — check if there are captured HLS streams for this tab ──
+      // This handles the case where the page has a blob: URL video (vixeo.io etc.)
+      // and yt-dlp can't extract it, but background.js has captured the stream.
+      const hlsHandled = await tryFallbackToHLSStreams(url);
+      if (!hlsHandled) {
+        showToast(errData.error || "Failed to extract media information ⚠️");
+        previewCard.classList.add("hidden");
+        scannedMediaData = null;
+      }
     }
   } catch (err) {
     console.error("Scan error:", err);
-    showToast("Network error while scanning media ⚠️");
-    previewCard.classList.add("hidden");
-    scannedMediaData = null;
+
+    // Network error — also check HLS streams before giving up
+    const hlsHandled = await tryFallbackToHLSStreams(url);
+    if (!hlsHandled) {
+      showToast("Network error while scanning media ⚠️");
+      previewCard.classList.add("hidden");
+      scannedMediaData = null;
+    }
   } finally {
     scanSpinner.classList.add("hidden");
     scanBtnText.textContent = "🔍 Scan Media";
     btnScanMedia.disabled = false;
   }
 }
+
+/**
+ * When /info scan fails, check if background.js captured HLS streams for
+ * the active tab. If yes → switch to M3U8 mode. If no → show wait message
+ * (only when currentPageReferer is set, i.e. came from a blob-URL video click).
+ * Returns true if handled, false if caller should show generic error.
+ */
+async function tryFallbackToHLSStreams(scannedUrl) {
+  if (!chrome || !chrome.tabs || !chrome.storage) return false;
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) return false;
+
+    const tabKey = `streams_tab_${tab.id}`;
+    return new Promise((resolve) => {
+      chrome.storage.local.get([tabKey], (tabRes) => {
+        const streams = Array.isArray(tabRes[tabKey]) ? tabRes[tabKey] : [];
+        const fresh   = streams.filter((s) => Date.now() - (s.timestamp || 0) < 30 * 60 * 1000);
+
+        if (fresh.length > 0) {
+          // ✅ Streams found — switch to M3U8 mode
+          mediaUrlInput.value = fresh[0].url;
+          currentPageReferer  = fresh[0].pageUrl || currentPageReferer;
+          triggerScan(fresh[0].url);
+          renderDetectedStreams(streams, tab.id);
+          resolve(true);
+        } else if (currentPageReferer) {
+          // HLS page but video not played yet — show instructions
+          showHLSWaitMessage(currentPageReferer);
+          resolve(true);
+        } else {
+          resolve(false);  // Plain scan failure — show normal error
+        }
+      });
+    });
+  } catch (_) {
+    return false;
+  }
+}
+
 
 function renderPreview(data) {
   previewTitle.textContent = data.title || "Media File";
@@ -682,6 +1051,8 @@ async function startDownload() {
     connections: parseInt(connectionsSlider.value, 10),
     title: scannedMediaData ? scannedMediaData.title : "",
     thumbnail_url: scannedMediaData ? scannedMediaData.thumbnail : "",
+    // Pass the page referer so yt-dlp can set --referer for restricted sites
+    referer: currentPageReferer || "",
   };
 
   btnStartDownload.disabled = true;
@@ -843,6 +1214,23 @@ function listenToProgressStream(taskId, fallbackTitle = "Media Download") {
         activeEventSource.close();
         clearActiveTaskStorage();
         showToast("✅ Download completed successfully!");
+        // Remove the queue card after a short delay so user can see the completed status
+        setTimeout(() => {
+          const cardEl = document.getElementById(`task-card-${taskId}`);
+          if (cardEl) {
+            cardEl.style.transition = "opacity 0.5s ease, transform 0.5s ease";
+            cardEl.style.opacity = "0";
+            cardEl.style.transform = "translateY(-8px)";
+            setTimeout(() => {
+              cardEl.remove();
+              // Show empty queue placeholder if no more cards
+              if (queueList.querySelectorAll(".queue-card").length === 0) {
+                emptyQueue.classList.remove("hidden");
+                queueBadge.classList.add("hidden");
+              }
+            }, 500);
+          }
+        }, 3000);
       } else if (status === "failed" || status === "cancelled") {
         statusBadge.className = `badge-status ${status}`;
         statusBadge.textContent = status === "failed" ? "❌ Failed" : "⏸ Cancelled";

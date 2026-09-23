@@ -569,7 +569,7 @@ def _cleanup_partial_files(started_after: float):
         print(f"[Cleanup] Removed {len(removed)} partial file(s): {removed}")
 
 
-def run_download_task(task_id, url, output_format, quality, connections, custom_title=None, thumbnail_url=None):
+def run_download_task(task_id, url, output_format, quality, connections, custom_title=None, thumbnail_url=None, referer=None):
     # Wait for concurrency slot
     acquired = download_semaphore.acquire(timeout=None)
     
@@ -591,15 +591,33 @@ def run_download_task(task_id, url, output_format, quality, connections, custom_
             )
             return
 
-        output_template = str(DOWNLOADS_DIR / "%(title).80s.%(ext)s")
+        # Build output template. For HLS/M3U8 streams the title sent by the
+        # popup is the generic "HLS Stream" placeholder — append a timestamp
+        # so every HLS download gets a unique filename and never conflicts.
+        _is_hls_generic = (
+            not custom_title or
+            custom_title.strip().lower() in ("hls stream", "hls stream (m3u8)", "")
+        )
+        if _is_hls_generic:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_template = str(DOWNLOADS_DIR / f"HLS_Stream_{ts}.%(ext)s")
+        else:
+            output_template = str(DOWNLOADS_DIR / "%(title).80s.%(ext)s")
+
         cmd = [
             yt_dlp_path, url,
             "-o", output_template,
             "--no-mtime",
+            "--no-overwrites",        # skip if exact same file exists (safety net)
             "--trim-filenames", "60",
             "--concurrent-fragments", str(connections),
             *ytdlp_impersonate_flags(),
         ]
+
+        # Inject --referer when the caller provides a page URL (unlocks HLS/M3U8 streams
+        # on sites that validate the Referer header, e.g. yt-dlp --referer "https://site.com/" <url>)
+        if referer and isinstance(referer, str) and referer.startswith(("http://", "https://")):
+            cmd.extend(["--referer", referer])
 
         if output_format.lower() in ("mp3", "m4a", "wav", "flac", "aac", "opus"):
             cmd.extend(["-x", "--audio-format", output_format.lower()])
@@ -1015,6 +1033,8 @@ def get_media_info():
     if not url:
         return jsonify({"error": "url parameter is required"}), 400
 
+    referer = request.args.get("referer", "")
+
     try:
         yt_dlp_path = get_tool_path("yt-dlp")
         cmd_info = [
@@ -1025,6 +1045,10 @@ def get_media_info():
             "--ignore-errors",
             *ytdlp_impersonate_flags(),
         ]
+
+        # Pass Referer header for sites that restrict info extraction by origin
+        if referer and referer.startswith(("http://", "https://")):
+            cmd_info.extend(["--referer", referer])
         # Fall back to a generic user-agent when curl-cffi is not available
         if not CURL_CFFI_AVAILABLE:
             cmd_info += [
@@ -1124,6 +1148,7 @@ def start_download():
     connections = int(data.get("connections", 16))
     title = data.get("title")
     thumbnail_url = data.get("thumbnail_url")
+    referer = data.get("referer", "")  # page URL used as HTTP Referer header
 
     with active_downloads_lock:
         active_downloads[task_id] = {
@@ -1140,7 +1165,7 @@ def start_download():
     _enqueue(task_id)
 
     executor.submit(
-        run_download_task, task_id, url, output_format, quality, connections, title, thumbnail_url
+        run_download_task, task_id, url, output_format, quality, connections, title, thumbnail_url, referer
     )
 
     with active_downloads_lock:
