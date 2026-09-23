@@ -1,22 +1,22 @@
 # ⚡ STU Media Downloader
 
-A high-performance, cross-platform media downloader system combining a robust Python Flask backend (powered by `yt-dlp` and `aria2c` multi-connection acceleration) and a sleek Manifest V3 Chrome Extension frontend.
+A high-performance, cross-platform media downloader combining a robust Python Flask backend (powered by `yt-dlp` and `aria2c` multi-connection acceleration) with a sleek browser extension frontend — available for **Chrome/Edge (Manifest V3)** and **Firefox (Manifest V2)**.
 
 ---
 
 ## 🌟 Key Features
 
-- ⚡ **3x–5x Multi-Connection Boost:** Multi-segmented accelerated downloading via `aria2c` (up to 16 parallel connections per download).
-- 🎬 **Smart Video Detection & Auto-Open:** Detects HTML5 video players on any website (YouTube, Vimeo, Twitter/X, TikTok, etc.) and injects an overlay **⚡ Download** badge. Clicking it automatically opens the extension popup and scans the media without manual toolbar clicks!
-- 📡 **HLS/M3U8 Stream Detection (NEW in v1.0.1):** Automatically intercepts `.m3u8` and `.ts` HLS streaming requests from any website (including deep CDN paths). Captured streams are auto-filled into the download input — no manual URL copying needed. Works for restricted streaming sites like vixeo.io, Lulustream, and similar platforms.
-- 🎯 **Targeted Scanning:** Media is scanned only when you want it — via the overlay badge, pasting a URL, pressing Enter, or clicking **🌐 Current Tab**. No unwanted background auto-scanning on normal extension open.
-- 🔄 **Self-Updating Core Engine (`yt-dlp -U`):** Automatically checks for and applies `yt-dlp` extractor updates every time the system starts.
-- 🔔 **In-Extension Update Notifications:** Live alert banner and toasts notify you inside the extension when the core engine updates, plus a **🔄 Check Update** button in the Settings tab.
-- 📡 **Real-time Live Progress (SSE):** Server-Sent Events stream live download speeds (`⚡ 18.5 MiB/s`), exact file sizes, completion percentage, and remaining ETA.
-- 🛑 **Task Cancellation & Instant Cleanup:** Cancel running downloads anytime with immediate partial file removal (`.part`, `.ytdl`, `.aria2`).
-- 🗄️ **Persistent SQLite History:** Full download records with search, status filters (Completed, Failed, Cancelled), and pagination (`~/.studownloader/history.db`).
-- 📂 **Direct Folder Access:** One-click OS file manager explorer opening (`~/Downloads`) with built-in path-traversal security sandbox.
-- 🖱️ **Double-Click Launchers:** Ready-to-use launch scripts and shortcuts for Linux, macOS, and Windows.
+- ⚡ **3×–5× Multi-Connection Boost:** Multi-segmented acceleration via `aria2c` (up to 16 parallel connections per file).
+- 🎬 **Smart Video Detection & Auto-Open:** Detects HTML5 video players on any website and injects an **⚡ Download** overlay badge. Clicking it opens the popup and pre-fills media details automatically.
+- 📡 **HLS/M3U8 Stream Interception:** Silently captures `.m3u8` playlists and `.ts` segments from any website (including deep CDN paths). Auto-fills the download input — no manual URL copying needed.
+- 🧲 **Torrent & FTP Downloads (NEW in v1.0.2):** New dedicated tab sends magnet links, `.torrent` URLs, `ftp://` paths, and direct HTTPS file links straight to `aria2c` — live progress in the Queue tab.
+- ⚙️ **Settings Overlay (NEW in v1.0.2):** Settings moved from a tab to a slide-down overlay panel triggered by the `⚙️` header icon — eliminating the server status lag on popup open.
+- 🔄 **Self-Updating Engine:** Automatically checks and applies `yt-dlp` updates on every start.
+- 📡 **Real-time Live Progress (SSE):** Server-Sent Events stream live speed, file size, percentage, and ETA.
+- 🛑 **Task Cancellation & Cleanup:** Cancel any download with immediate partial-file removal (`.part`, `.ytdl`, `.aria2`).
+- 🗄️ **Persistent SQLite History:** Full download records with search, status filters, and pagination.
+- 📂 **Native Folder Picker & File Explorer:** One-click OS folder selection and file manager opening.
+- 🦊 **Firefox Support (NEW in v1.0.2):** Separate `extension-firefox/` folder with Manifest V2 for Firefox 109+.
 
 ---
 
@@ -24,48 +24,94 @@ A high-performance, cross-platform media downloader system combining a robust Py
 
 ### 1. Launch the Backend Server
 
-- **🐧 Linux:**
-  - Standard Terminal: `./start_downloader.sh`
-  - **Silent Background:** `./start_background.sh`
-  - **Stop Server:** `./stop_downloader.sh`
-- **🍎 macOS:**
-  - Standard: Double-click `start_downloader.command`
-  - **Stop Server:** Double-click `stop_downloader.command` (or `./stop_downloader.sh`)
-- **🪟 Windows:**
-  - Standard: Double-click `start_downloader.bat`
-  - **Silent Invisible Background:** Double-click `start_hidden.vbs`
-  - **Stop Server:** Double-click `stop_downloader.bat`
-- **🧩 In Extension:** Click the **🛑 Stop Server** button under the Extension's **Settings (⚙️)** tab anytime!
+| Platform | Command |
+|---|---|
+| 🐧 **Linux** — terminal | `./start_downloader.sh` |
+| 🐧 **Linux** — silent background | `./start_background.sh` |
+| 🐧 **Linux** — stop | `./stop_downloader.sh` |
+| 🍎 **macOS** — launch | Double-click `start_downloader.command` |
+| 🍎 **macOS** — stop | Double-click `stop_downloader.command` |
+| 🪟 **Windows** — standard | Double-click `start_downloader.bat` |
+| 🪟 **Windows** — silent | Double-click `start_hidden.vbs` |
+| 🪟 **Windows** — stop | Double-click `stop_downloader.bat` |
+| 🧩 **In Extension** | Click `⚙️` → **🛑 Stop Server** |
 
-### 2. Install the Chrome Extension
+### 2. Install the Extension
 
-1. Open Google Chrome (or any Chromium browser like Brave, Edge).
-2. Navigate to `chrome://extensions`.
-3. Enable **Developer mode** (top-right toggle).
-4. Click **Load unpacked** and select the `extension/` directory from this repository.
-5. Pin the **STU Media Downloader** icon to your toolbar!
+#### 🌐 Chrome / Edge / Brave (Manifest V3)
+
+1. Open `chrome://extensions` (or `edge://extensions`).
+2. Enable **Developer mode** (top-right toggle).
+3. Click **Load unpacked** → select the **`extension/`** folder.
+4. Pin **STU Media Downloader** to your toolbar.
+
+#### 🦊 Firefox (Manifest V2)
+
+> Firefox requires a **separate folder** because it uses Manifest V2 with `background.scripts` instead of `service_worker`, and `browserAction` instead of `action`.
+
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on…**
+3. Navigate to the **`extension-firefox/`** folder and select `manifest.json`.
+4. The extension will load. *(Note: Temporary add-ons are removed on browser restart — use `web-ext` for persistent installs.)*
+
+##### Permanent Firefox Install via `web-ext`
+
+```bash
+npm install -g web-ext
+cd extension-firefox/
+web-ext run           # launch Firefox with the extension loaded
+web-ext build         # creates a .zip for submission to addons.mozilla.org
+```
+
+#### Key Differences Between Extension Versions
+
+| Feature | Chrome/Edge (`extension/`) | Firefox (`extension-firefox/`) |
+|---|---|---|
+| Manifest version | **V3** | **V2** |
+| Background | `service_worker` | `scripts: ["background.js"]` |
+| Toolbar action | `chrome.action` | `chrome.browserAction` |
+| Popup open API | `chrome.action.openPopup` ✅ | Not supported in MV2 ❌ |
+| Per-tab badge | `setBadgeText({ tabId })` | Global badge (MV2 limitation) |
+| URL check | `chrome-extension://` | `moz-extension://` |
+| Min browser version | Chrome 88+ | Firefox 109+ |
 
 ---
 
 ## 🧭 How to Use
 
 ### Standard Sites (YouTube, Vimeo, Twitter/X, etc.)
-1. **Auto Detection:** Browse to any video. Click the **⚡ Download** badge that appears on the player. The extension opens automatically with media details loaded.
-2. **Current Tab:** Click the extension icon → click **🌐 Current Tab** to scan the active tab.
-3. **Manual Paste:** Paste any direct video URL and click **🔍 Scan Media** or press Enter.
-4. **Choose Quality & Speed:** Select format (MP4, MKV, MP3, WebM), resolution, and connection count, then click **🚀 Start Download**.
-5. **Monitor Progress:** Live progress appears under the **Queue** tab. Completed downloads are saved to **History**.
+1. Browse to any video. Click the **⚡ Download** badge on the player — popup opens with media pre-loaded.
+2. Or click the extension icon → **🌐 Current Tab** to scan manually.
+3. Choose format (MP4/MKV/MP3/WebM), quality, and connection count → **🚀 Start Download**.
+4. Watch live progress in the **⚡ Queue** tab. Finished downloads appear in **📜 History**.
 
-### HLS Streaming Sites (vixeo.io, Lulustream, etc.) — NEW in v1.0.1
-These sites serve video via encrypted HLS streams (`.m3u8` / `.ts` segments) that cannot be directly extracted by `yt-dlp`. STU Downloader handles them automatically:
-
-1. **Reload the page** after installing/updating the extension (ensures the network interceptor is active).
+### HLS Streaming Sites (vixeo.io, Lulustream, etc.)
+1. **Reload the page** after installing the extension.
 2. **Press ▶️ Play** on the video.
-3. **Wait 2–3 seconds** for the extension to capture the stream in the background.
-4. **Click the extension icon** — the M3U8 stream URL will be auto-filled and ready.
-5. Click **📡 Download HLS Stream** to start downloading.
+3. Wait **2–3 seconds** for the stream to be captured.
+4. Click the extension icon — the M3U8 URL is auto-filled.
+5. Click **📡 Download HLS Stream**.
 
-> **Note:** If the stream hasn't been captured yet, the extension shows step-by-step instructions automatically.
+> If the stream hasn't been captured yet, the extension shows step-by-step instructions automatically.
+
+### 🧲 Torrent & FTP Downloads (New!)
+1. Click the **🧲 Torrent & FTP** tab.
+2. Paste a **magnet link**, `.torrent` URL, `ftp://` path, or any direct HTTPS file link.
+3. The extension auto-detects the type and shows a preview card.
+4. Optionally enter a custom name → click **🧲 Start Download**.
+5. Download is handed to `aria2c` — live progress appears in the **⚡ Queue** tab.
+
+| Input Type | Example |
+|---|---|
+| Magnet link | `magnet:?xt=urn:btih:...&dn=Ubuntu+22.04` |
+| Torrent file | `https://example.com/file.torrent` |
+| FTP | `ftp://ftp.example.com/pub/file.iso` |
+| Direct HTTP | `https://releases.ubuntu.com/22.04/ubuntu-22.04-live.iso` |
+
+### ⚙️ Settings Panel (New!)
+- Click the **⚙️** icon in the popup header (next to ⤢) to open the settings overlay.
+- Configure: simultaneous downloads, connection threads, default format/quality, download folder.
+- Server status indicator is now **inside** the settings panel — no longer blocks popup open.
 
 ---
 
@@ -73,97 +119,145 @@ These sites serve video via encrypted HLS streams (`.m3u8` / `.ts` segments) tha
 
 ```
 STU_Media_Downloader/
-├── start_downloader.sh            # Linux launcher script (with auto-update check)
-├── start_background.sh            # Linux silent background launcher (runs without terminal)
-├── stop_downloader.sh             # Linux server stop script
-├── start_downloader.bat           # Windows batch launcher (with auto-update check)
+├── start_downloader.sh            # Linux launcher (with auto-update)
+├── start_background.sh            # Linux silent background launcher
+├── stop_downloader.sh             # Linux stop script
+├── start_downloader.bat           # Windows launcher
 ├── start_hidden.vbs               # Windows 1-click invisible background launcher
-├── stop_downloader.bat            # Windows server stop script
-├── start_downloader.command       # macOS launcher script (with auto-update check)
-├── stop_downloader.command        # macOS server stop script
-├── STU-Media-Downloader.desktop   # Linux desktop application shortcut
+├── stop_downloader.bat            # Windows stop script
+├── start_downloader.command       # macOS launcher
+├── stop_downloader.command        # macOS stop script
+├── STU-Media-Downloader.desktop   # Linux desktop shortcut
+│
 ├── backend/
-│   ├── app.py                     # Flask server, SQLAlchemy models, download engine & SSE
-│   ├── requirements.txt           # Python dependencies (Flask, SQLAlchemy, yt-dlp, etc.)
-│   ├── bin/                       # Self-healed binaries directory (.gitkeep)
-│   ├── Downloads/                 # Default media output directory (.gitkeep)
+│   ├── app.py                     # Flask server, download engine, SSE, aria2c endpoints
+│   ├── requirements.txt           # Python dependencies
+│   ├── bin/                       # Self-healed binaries (yt-dlp, aria2c)
+│   ├── Downloads/                 # Default media output directory
 │   └── tests/
-│       └── test_backend.py        # Automated test suite (Pytest - 15 unit tests)
-├── extension/
-│   ├── manifest.json              # Chrome Extension Manifest V3 configuration
-│   ├── background.js              # Service worker: HLS stream interceptor + popup auto-open
-│   ├── content.js                 # In-page video detection & overlay badge injection
-│   ├── content.css                # Overlay badge & toast notification styling
-│   ├── popup.html                 # Glassmorphic 4-tab popup UI (Media, Queue, History, Settings)
-│   ├── popup.css                  # Modern dark mode styling & animations
-│   ├── popup.js                   # Frontend logic, SSE stream, HLS detection & update notifications
-│   └── icons/                     # Extension icons (16px, 48px, 128px)
+│       └── test_backend.py        # Pytest suite (15 unit tests)
+│
+├── extension/                     # ── Chrome / Edge / Brave (Manifest V3) ──
+│   ├── manifest.json              #   MV3 config: service_worker, action, host_permissions
+│   ├── background.js              #   Service worker: HLS interceptor + popup auto-open
+│   ├── content.js                 #   In-page video detection & overlay badge injection
+│   ├── content.css                #   Overlay badge & toast styling
+│   ├── popup.html                 #   4-tab popup UI (Media, Queue, History, Torrent & FTP)
+│   ├── popup.css                  #   Dark glassmorphic UI + settings overlay + torrent tab
+│   ├── popup.js                   #   Frontend logic, SSE, HLS, settings overlay, torrent
+│   └── icons/                     #   Extension icons (16px, 48px, 128px)
+│
+├── extension-firefox/             # ── Firefox (Manifest V2) ──
+│   ├── manifest.json              #   MV2 config: scripts[], browser_action, gecko ID
+│   ├── background.js              #   Persistent background: browserAction shim, MV2 APIs
+│   ├── content.js                 #   Same as Chrome (compatible)
+│   ├── content.css                #   Same as Chrome (compatible)
+│   ├── popup.html                 #   Same as Chrome (compatible)
+│   ├── popup.css                  #   Same as Chrome (compatible)
+│   ├── popup.js                   #   Chrome version + browserAction shim at top
+│   └── icons/                     #   Same icons (compatible)
+│
 └── README.md
 ```
 
 ---
 
-## 🔌 API Endpoints Summary
+## 🔌 API Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/health` | Server health check, tool status, and `ytdlp_update` info |
-| `GET` | `/info?url=<URL>` | Extracts media metadata (title, thumbnail, duration, resolutions) |
-| `POST` | `/download` | Enqueues and starts a background accelerated download task |
-| `POST` | `/cancel/<task_id>` | Cancels an active download and cleans up temporary partial files |
-| `GET` | `/progress-stream/<task_id>` | Server-Sent Events (SSE) live speed, percent, and ETA stream |
-| `GET` | `/history` | Paginated download history with search and status filtering |
-| `DELETE` | `/history/<id>` | Deletes an entry from SQLite history |
-| `POST` | `/history/clear` | Clears all history entries |
-| `GET/POST` | `/settings` | Reads or updates user preferences (concurrency, format, quality) |
-| `GET` | `/app-version` | Returns current application version, dev status, and repository metadata |
-| `POST` | `/check-app-update` | Checks GitHub for app updates (bypassed in Development Mode) |
-| `POST` | `/apply-app-update` | Pulls latest changes via git for git-cloned installations (production only) |
-| `POST` | `/check-updates` | Checks for and triggers `yt-dlp -U` updates on demand |
-| `POST` | `/shutdown` | Cleanly stops the backend server process and cleans up PID file |
-| `POST` | `/open-folder` | Opens downloaded file's enclosing directory in OS file explorer |
-| `GET/POST` | `/pick-folder` | Opens native OS folder selection dialog (Linux/macOS/Windows) and returns path |
-| `GET` | `/clipboard` | Reads system clipboard cross-platform (Linux Wayland/X11, macOS, Windows) |
+| `GET` | `/health` | Server health, tool status, `ytdlp_update` info |
+| `GET` | `/info?url=<URL>` | Extract media metadata (title, thumbnail, formats) |
+| `POST` | `/download` | Enqueue a `yt-dlp` + `aria2c` accelerated download |
+| `POST` | `/aria2-download` | **NEW** — Direct `aria2c` download (torrent/FTP/HTTP) |
+| `POST` | `/cancel/<task_id>` | Cancel active download, remove partial files |
+| `GET` | `/progress-stream/<task_id>` | SSE live speed, percent, ETA stream |
+| `GET` | `/history` | Paginated history with search & status filter |
+| `DELETE` | `/history/<id>` | Delete a history entry |
+| `POST` | `/history/clear` | Clear all history |
+| `GET/POST` | `/settings` | Read or update user preferences |
+| `GET` | `/app-version` | App version, dev status, repository metadata |
+| `POST` | `/check-app-update` | Check GitHub for app updates |
+| `POST` | `/apply-app-update` | Pull latest changes (git installs only) |
+| `POST` | `/check-updates` | On-demand `yt-dlp -U` update |
+| `POST` | `/shutdown` | Cleanly stop the backend server |
+| `POST` | `/open-folder` | Open enclosing folder in OS file manager |
+| `GET/POST` | `/pick-folder` | Native OS folder picker dialog |
+| `GET` | `/clipboard` | Cross-platform clipboard read (Wayland/X11/macOS/Windows) |
 
 ---
 
-## 🧪 Running Automated Tests
-
-Run the complete test suite using `pytest`:
+## 🧪 Running Tests
 
 ```bash
 ./backend/venv/bin/pytest backend/tests/test_backend.py -v
 ```
 
-All 15 tests verify database operations, health endpoints, path traversal security, task cancellations, settings persistence, server shutdown, app update checks, folder picker, and cross-platform clipboard reading.
+15 tests covering: health endpoints, database operations, path-traversal security, task cancellation, settings persistence, server shutdown, app update checks, folder picker, and clipboard reading.
 
 ---
 
 ## 📋 Changelog
 
+### v1.0.2 — Torrent/FTP, Firefox, Settings Overlay
+**Released:** September 2026
+
+#### ✨ New Features
+
+- **🧲 Torrent & FTP Tab:** New 4th extension tab sends any link to `aria2c` directly:
+  - `magnet:?xt=...` — BitTorrent magnet links (with `--seed-time=0` auto-set)
+  - `https://...*.torrent` — `.torrent` metainfo file URLs
+  - `ftp://` / `sftp://` — FTP server file downloads
+  - `https://...` direct — any HTTPS file link (bypasses `yt-dlp`)
+  - Auto-detects link type → shows color-coded badge (🧲 green / 📡 cyan / 🔗 amber)
+  - Info card parses magnet `dn=` param to show torrent name & tracker count
+  - Download queued → auto-switches to **Queue** tab with live SSE progress
+
+- **⚙️ Settings Overlay Panel:** Settings moved from a navigation tab to a slide-down overlay triggered by the `⚙️` header icon:
+  - **Eliminates popup-open lag** — server health check is now lazy (only runs when `⚙️` is clicked)
+  - Server status indicator (Online/Offline dot) moved inside the settings panel
+  - Close by clicking `✕`, clicking `⚙️` again, or clicking outside the panel
+  - All settings preserved (concurrent downloads, threads, format, quality, folder)
+
+- **🦊 Firefox Support:** New `extension-firefox/` folder with Manifest V2 for Firefox 109+:
+  - `background.scripts: ["background.js"]` instead of `service_worker`
+  - `browser_action` instead of `action`
+  - `browser_specific_settings.gecko` with extension ID and `strict_min_version: "109.0"`
+  - `webRequestBlocking` permission for MV2 compatibility
+  - `chrome.action` → `chrome.browserAction` shim in `popup.js` and `background.js`
+  - `moz-extension://` URL check added alongside `chrome-extension://`
+  - Graceful degradation for `openPopup()` (not available in Firefox MV2)
+
+- **`/aria2-download` Backend Endpoint:** New Flask route handles direct `aria2c` downloads:
+  - 16 parallel connections, 1M min-split, `--no-conf` for clean operation
+  - Torrent: `--seed-time=0` + `--bt-stop-timeout=10` (download only, no seeding)
+  - Real-time aria2c progress parsed from output (`[#xxxx NNN/NNN(%%)]`)
+  - Integrated with existing `task_id` / SSE progress system and SQLite history
+
+#### 🔧 Improvements
+- Extension header cleaned up: removed Online/Offline status dot (was causing UI lag)
+- Tab bar: replaced **Settings** tab with **🧲 Torrent & FTP** tab
+- `popup.js` `DOMContentLoaded`: health check is now fire-and-forget (`catch(() => {})`) instead of blocking `await`
+- `popup.html`: settings panel uses `visibility: hidden` + `opacity` transition for smooth fade-in/out
+
+---
+
 ### v1.0.1 — HLS/M3U8 Stream Support
 **Released:** September 2026
 
 #### ✨ New Features
-- **HLS Stream Auto-Detection:** `background.js` now intercepts `.m3u8` and `.ts` network requests from any website using `<all_urls>` (replaces shallow URL pattern matching that missed deep CDN paths like `/secure/385/.../seg-1-v1-a1.ts?...`).
-- **Smart HLS URL Construction:** Captured `.ts` segment URLs are automatically converted to master playlist URLs (`index-v1-a1.m3u8`) with query parameters preserved.
-- **Per-Tab Stream Storage:** Detected streams are stored per browser tab (`streams_tab_<tabId>`) — prevents cross-tab stream pollution.
-- **HLS Preview Card:** When an M3U8 stream is detected, the popup shows a dedicated **"📡 HLS Stream"** preview card with the site hostname and a pulsing green badge.
-- **HLS Badge on Extension Icon:** Extension icon shows a green **"HLS"** badge when a stream is captured on the active tab.
-- **Smart Fallback Flow:** Badge click on blob-URL (HLS) videos → checks captured streams first → falls back to `yt-dlp` page scan → shows step-by-step instructions only if scan also fails.
+- **HLS Stream Auto-Detection:** `background.js` intercepts `.m3u8` and `.ts` network requests from any website using `<all_urls>`.
+- **Smart HLS URL Construction:** Captured `.ts` segment URLs automatically converted to master playlist URLs.
+- **Per-Tab Stream Storage:** Detected streams stored per browser tab — prevents cross-tab pollution.
+- **HLS Preview Card:** Dedicated "📡 HLS Stream" card in the popup with site hostname and pulsing green badge.
+- **HLS Badge on Icon:** Extension icon shows green "HLS" badge when a stream is captured.
 
 #### 🐛 Bug Fixes
-- **Critical: Deep CDN Path Interception** — URL patterns like `*://*/*.ts*` only matched single-segment paths. Fixed by using `<all_urls>` with JavaScript filtering.
-- **HLS Filename Conflict** — All HLS downloads saved as `HLS Stream.mp4`, causing yt-dlp to silently skip subsequent downloads. Fixed with timestamp-based filenames: `HLS_Stream_20260923_181234.mp4`.
-- **False HLS Wait Message** — The "Play video first" instruction was shown for all blob-URL videos (including YouTube), even when `yt-dlp` could handle them. Now only shown after a scan actually fails.
-- **Tab Mismatch** — Global `detectedM3u8` storage key could auto-fill a stream from a different tab. Fixed with per-tab storage lookup with same-hostname validation.
-- **`new URL()` Crash** — `TypeError` when `currentPageReferer` was an empty string. Wrapped in `try/catch`.
-- **`--no-overwrites` Safety** — Added flag to prevent yt-dlp from silently failing when a same-named file already exists.
-
-#### 🔧 Improvements
-- `content.js`: Blob-URL video badge clicks now tagged with `isHLSPage: true` so popup can route them correctly without attempting a doomed page-URL scan.
-- `popup.js`: New `tryFallbackToHLSStreams()` helper — cleanly separates the HLS fallback logic from the scan error path.
-- `popup.css`: Added `badge-success` (green, pulsing) and `badge-warn` (amber) badge variants for HLS stream status indicators.
+- **Deep CDN Path Interception:** Fixed by switching from pattern-based URL matching to `<all_urls>` + JS filter.
+- **HLS Filename Conflict:** Timestamp-based filenames (`HLS_Stream_20260923_181234.mp4`) prevent silent skips.
+- **False HLS Wait Message:** "Play video first" instruction now only shown after a scan actually fails.
+- **Tab Mismatch:** Fixed with per-tab storage and same-hostname validation.
+- **`--no-overwrites`:** Added flag to prevent yt-dlp from silently skipping same-named files.
 
 ---
 
@@ -176,9 +270,9 @@ All 15 tests verify database operations, health endpoints, path traversal securi
 - Self-updating `yt-dlp` engine with in-extension notifications.
 - Persistent SQLite download history with search, filter, and pagination.
 - Native OS folder picker and file explorer integration.
-- Cross-platform launchers (Linux, macOS, Windows) with background mode support.
-- Browser TLS impersonation via `curl-cffi` (`--impersonate chrome`).
-- Settings persistence (download directory, concurrency, format, quality).
+- Cross-platform launchers (Linux, macOS, Windows) with background mode.
+- Browser TLS impersonation via `curl-cffi`.
+- Settings persistence (directory, concurrency, format, quality).
 
 ---
 

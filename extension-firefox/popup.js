@@ -1,4 +1,7 @@
-// STU Media Downloader — Popup Logic & Backend Integration
+// STU Media Downloader — Popup Logic & Backend Integration (Firefox MV2)
+// Firefox MV2 uses browserAction; provide a shim so all chrome.action calls work.
+if (!chrome.action && chrome.browserAction) { chrome.action = chrome.browserAction; }
+
 const API_BASE = "http://127.0.0.1:5000";
 
 let isBackendOnline = false;

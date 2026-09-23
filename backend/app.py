@@ -1178,6 +1178,203 @@ def start_download():
     })
 
 
+# ── Aria2c direct download (Torrent / FTP / HTTP) ─────────────────────────────
+
+def run_aria2_task(task_id: str, url: str, title: str):
+    """
+    Direct aria2c download — handles:
+      • magnet:?xt=...        (BitTorrent magnet link)
+      • https?://.+\\.torrent (torrent metainfo file)
+      • ftp://...             (FTP file)
+      • https?://...          (any direct HTTP/S link — bypasses yt-dlp)
+    Progress is streamed via the same SSE /progress-stream/<task_id> endpoint.
+    """
+    acquired = download_semaphore.acquire(timeout=None)
+    try:
+        _dequeue(task_id)
+        with active_downloads_lock:
+            if active_downloads.get(task_id, {}).get("status") == "cancelled":
+                return
+
+        try:
+            aria2c_path = get_tool_path("aria2c")
+        except Exception as e:
+            _update_progress(task_id, status="failed", error=f"aria2c not found: {e}")
+            write_history_entry(
+                title=title, source_url=url, thumbnail_url=None,
+                file_path="", file_format="auto", quality="best",
+                file_size_mb=0, status="Failed", error_message=str(e),
+            )
+            return
+
+        is_torrent = url.startswith("magnet:") or url.lower().endswith(".torrent")
+
+        cmd = [
+            aria2c_path, url,
+            "--dir", str(DOWNLOADS_DIR),
+            "--max-connection-per-server=16",
+            "--split=16",
+            "--min-split-size=1M",
+            "--console-log-level=notice",
+            "--no-conf",
+        ]
+        if is_torrent:
+            cmd += [
+                "--seed-time=0",       # stop seeding once complete
+                "--bt-stop-timeout=10",
+            ]
+
+        started_at = time.time()
+        _update_progress(
+            task_id, status="downloading",
+            percent=0, speed="0 KiB/s", size="--", eta="--",
+            title=title, thumbnail_url=None,
+        )
+
+        import re as _re
+        _aria_progress_re = _re.compile(
+            r"\[#\w+\s+([\d.]+\w+)/([\d.]+\w+)\((\d+)%\)\s+CN:\d+\s+DL:([\d.]+\w+/s)(?:\s+ETA:(\S+))?"
+        )
+
+        process = None
+        error_lines: list[str] = []
+        final_path = ""
+
+        try:
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+
+            for raw_line in process.stdout:
+                with active_downloads_lock:
+                    if active_downloads.get(task_id, {}).get("status") == "cancelled":
+                        process.kill()
+                        break
+
+                line = raw_line.strip()
+                if not line:
+                    continue
+
+                # aria2c progress line looks like:
+                # [#abc123 15MiB/100MiB(15%) CN:16 DL:5.00MiB/s ETA:17s]
+                m = _aria_progress_re.search(line)
+                if m:
+                    downloaded, total, pct_str, speed, eta = m.groups()
+                    try:
+                        pct = int(pct_str)
+                    except ValueError:
+                        pct = 0
+                    _update_progress(
+                        task_id,
+                        percent=pct,
+                        speed=speed or "-- KiB/s",
+                        size=f"{downloaded} / {total}",
+                        eta=eta or "--",
+                    )
+                    continue
+
+                # Capture download path from aria2c output
+                if "Download complete:" in line or "download completed" in line.lower():
+                    parts = line.split(":", 1)
+                    if len(parts) > 1:
+                        candidate = parts[1].strip()
+                        if os.path.isfile(candidate):
+                            final_path = candidate
+
+                elif line.startswith("ERROR") or "errorCode" in line:
+                    error_lines.append(line)
+
+            process.wait(timeout=30)
+
+        except Exception as exc:
+            error_lines.append(str(exc))
+            if process:
+                try:
+                    process.kill()
+                except Exception:
+                    pass
+
+        with active_downloads_lock:
+            if active_downloads.get(task_id, {}).get("status") == "cancelled":
+                _cleanup_partial_files(started_at)
+                _update_progress(task_id, status="cancelled")
+                return
+
+        rc = process.returncode if process else -1
+
+        if rc == 0:
+            size_mb = 0.0
+            if final_path and os.path.isfile(final_path):
+                size_mb = round(os.path.getsize(final_path) / (1024 * 1024), 2)
+            _update_progress(task_id, status="completed", percent=100, speed="", eta="Done")
+            write_history_entry(
+                title=title, source_url=url, thumbnail_url=None,
+                file_path=final_path, file_format="auto", quality="best",
+                file_size_mb=size_mb, status="Completed", error_message=None,
+            )
+        else:
+            err_msg = " | ".join(error_lines[-3:]) if error_lines else f"aria2c exited with code {rc}"
+            _update_progress(task_id, status="failed", error=err_msg)
+            write_history_entry(
+                title=title, source_url=url, thumbnail_url=None,
+                file_path="", file_format="auto", quality="best",
+                file_size_mb=0, status="Failed", error_message=err_msg,
+            )
+
+    except Exception as e:
+        _update_progress(task_id, status="failed", error=str(e))
+    finally:
+        if acquired:
+            download_semaphore.release()
+
+
+@app.route("/aria2-download", methods=["POST"])
+def start_aria2_download():
+    """Start a direct aria2c download (torrent / FTP / HTTP)."""
+    data = request.get_json(force=True)
+    url = (data.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "url is required"}), 400
+
+    # Derive a friendly display title
+    title = (data.get("title") or "").strip()
+    if not title:
+        if url.startswith("magnet:"):
+            # Try to extract display name from dn= param
+            import urllib.parse as _up
+            qs = _up.parse_qs(_up.urlparse(url).query)
+            dn = qs.get("dn", [""])[0]
+            title = dn or "Torrent Download"
+        else:
+            title = url.split("?")[0].rstrip("/").split("/")[-1] or "Download"
+
+    task_id = str(int(time.time() * 1000))
+
+    with active_downloads_lock:
+        active_downloads[task_id] = {
+            "task_id": task_id,
+            "status": "queued",
+            "percent": 0,
+            "speed": "0 KiB/s",
+            "size": "--",
+            "eta": "--",
+            "title": title,
+            "thumbnail_url": None,
+            "url": url,
+        }
+    _enqueue(task_id)
+    executor.submit(run_aria2_task, task_id, url, title)
+
+    with active_downloads_lock:
+        position = active_downloads[task_id].get("queue_position", 1)
+
+    return jsonify({"task_id": task_id, "status": "queued", "queue_position": position})
+
+
 @app.route("/cancel/<task_id>", methods=["POST"])
 def cancel_download(task_id):
     with active_downloads_lock:
