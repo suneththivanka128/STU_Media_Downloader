@@ -1179,12 +1179,22 @@ def start_download():
 
 
 # ── Aria2c direct download (Torrent / FTP / HTTP) ─────────────────────────────
+DEFAULT_BT_TRACKERS = (
+    "udp://tracker.opentrackr.org:1337/announce,"
+    "udp://open.mpkg.org:6969/announce,"
+    "udp://open.stealth.si:80/announce,"
+    "udp://tracker.openbittorrent.com:80/announce,"
+    "udp://opentracker.i2p.rocks:6969/announce,"
+    "udp://tracker.torrent.eu.org:451/announce,"
+    "udp://open.demonii.com:1337/announce,"
+    "udp://exodus.desync.com:6969/announce"
+)
 
 def run_aria2_task(task_id: str, url: str, title: str):
     """
     Direct aria2c download — handles:
       • magnet:?xt=...        (BitTorrent magnet link)
-      • https?://.+\\.torrent (torrent metainfo file)
+      • https?://.+\.torrent (torrent metainfo file)
       • ftp://...             (FTP file)
       • https?://...          (any direct HTTP/S link — bypasses yt-dlp)
     Progress is streamed via the same SSE /progress-stream/<task_id> endpoint.
@@ -1209,31 +1219,40 @@ def run_aria2_task(task_id: str, url: str, title: str):
 
         is_torrent = url.startswith("magnet:") or url.lower().endswith(".torrent")
 
-        cmd = [
-            aria2c_path, url,
-            "--dir", str(DOWNLOADS_DIR),
-            "--max-connection-per-server=16",
-            "--split=16",
-            "--min-split-size=1M",
-            "--console-log-level=notice",
-            "--no-conf",
-        ]
         if is_torrent:
-            cmd += [
-                "--seed-time=0",       # stop seeding once complete
-                "--bt-stop-timeout=10",
+            cmd = [
+                aria2c_path, url,
+                "--dir", str(DOWNLOADS_DIR),
+                "--console-log-level=notice",
+                "--no-conf",
+                "--seed-time=0",
+                "--enable-dht=true",
+                "--enable-peer-exchange=true",
+                "--bt-enable-lpd=true",
+                "--bt-tracker=" + DEFAULT_BT_TRACKERS,
+                "--bt-stop-timeout=600",
+            ]
+        else:
+            cmd = [
+                aria2c_path, url,
+                "--dir", str(DOWNLOADS_DIR),
+                "--max-connection-per-server=16",
+                "--split=16",
+                "--min-split-size=1M",
+                "--console-log-level=notice",
+                "--no-conf",
             ]
 
         started_at = time.time()
         _update_progress(
             task_id, status="downloading",
-            percent=0, speed="0 KiB/s", size="--", eta="--",
+            percent=0, speed="0 KiB/s", size="Connecting to peers..." if is_torrent else "--", eta="--",
             title=title, thumbnail_url=None,
         )
 
         import re as _re
         _aria_progress_re = _re.compile(
-            r"\[#\w+\s+([\d.]+\w+)/([\d.]+\w+)\((\d+)%\)\s+CN:\d+\s+DL:([\d.]+\w+/s)(?:\s+ETA:(\S+))?"
+            r"\[#\w+\s+([\d.\w]+)/([\d.\w]+)(?:\((\d+)%\))?\s+.*?\bDL:([\d.\w]+/s|0B)(?:\s+ETA:([^\s\]]+))?"
         )
 
         process = None
@@ -1259,20 +1278,23 @@ def run_aria2_task(task_id: str, url: str, title: str):
                 if not line:
                     continue
 
-                # aria2c progress line looks like:
-                # [#abc123 15MiB/100MiB(15%) CN:16 DL:5.00MiB/s ETA:17s]
                 m = _aria_progress_re.search(line)
                 if m:
                     downloaded, total, pct_str, speed, eta = m.groups()
                     try:
-                        pct = int(pct_str)
+                        pct = int(pct_str) if pct_str is not None else 0
                     except ValueError:
                         pct = 0
+                    
+                    display_size = f"{downloaded} / {total}"
+                    if downloaded == "0B" and total == "0B" and is_torrent:
+                        display_size = "Connecting to BitTorrent peers..."
+
                     _update_progress(
                         task_id,
                         percent=pct,
                         speed=speed or "-- KiB/s",
-                        size=f"{downloaded} / {total}",
+                        size=display_size,
                         eta=eta or "--",
                     )
                     continue
@@ -1282,7 +1304,7 @@ def run_aria2_task(task_id: str, url: str, title: str):
                     parts = line.split(":", 1)
                     if len(parts) > 1:
                         candidate = parts[1].strip()
-                        if os.path.isfile(candidate):
+                        if os.path.exists(candidate):
                             final_path = candidate
 
                 elif line.startswith("ERROR") or "errorCode" in line:
@@ -1308,8 +1330,24 @@ def run_aria2_task(task_id: str, url: str, title: str):
 
         if rc == 0:
             size_mb = 0.0
-            if final_path and os.path.isfile(final_path):
-                size_mb = round(os.path.getsize(final_path) / (1024 * 1024), 2)
+            if not final_path:
+                # Try finding target in DOWNLOADS_DIR
+                if title:
+                    target = os.path.join(DOWNLOADS_DIR, title)
+                    if os.path.exists(target):
+                        final_path = target
+
+            if final_path and os.path.exists(final_path):
+                if os.path.isfile(final_path):
+                    size_mb = round(os.path.getsize(final_path) / (1024 * 1024), 2)
+                elif os.path.isdir(final_path):
+                    total_bytes = sum(
+                        os.path.getsize(os.path.join(r, f))
+                        for r, _, files in os.walk(final_path)
+                        for f in files
+                    )
+                    size_mb = round(total_bytes / (1024 * 1024), 2)
+
             _update_progress(task_id, status="completed", percent=100, speed="", eta="Done")
             write_history_entry(
                 title=title, source_url=url, thumbnail_url=None,
