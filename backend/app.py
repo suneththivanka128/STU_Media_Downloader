@@ -1225,6 +1225,9 @@ def run_aria2_task(task_id: str, url: str, title: str):
                 "--dir", str(DOWNLOADS_DIR),
                 "--console-log-level=notice",
                 "--no-conf",
+                "--summary-interval=1",
+                "--allow-overwrite=true",
+                "--auto-file-renaming=true",
                 "--seed-time=0",
                 "--enable-dht=true",
                 "--enable-peer-exchange=true",
@@ -1241,6 +1244,9 @@ def run_aria2_task(task_id: str, url: str, title: str):
                 "--min-split-size=1M",
                 "--console-log-level=notice",
                 "--no-conf",
+                "--summary-interval=1",
+                "--allow-overwrite=true",
+                "--auto-file-renaming=true",
             ]
 
         started_at = time.time()
