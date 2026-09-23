@@ -935,13 +935,14 @@ async function startAriaDownload() {
       // Switch to Queue tab so user sees progress
       switchTab("tab-queue");
       // Start SSE progress tracking
-      startProgressTracking(data.task_id);
+      listenToProgressStream(data.task_id, customTitle || "Torrent Download");
     } else {
       const err = await res.json().catch(() => ({}));
       showToast(err.error || "Failed to start download ⚠️");
     }
   } catch (e) {
-    showToast("Network error — is the backend running?");
+    console.error("Error starting aria2 download:", e);
+    showToast(e.name === "TypeError" ? "Network error — is the backend running?" : `Error: ${e.message}`);
   } finally {
     btnTorrentDownload.disabled = false;
     updateTorrentUI(torrentUrlInput ? torrentUrlInput.value.trim() : "");
