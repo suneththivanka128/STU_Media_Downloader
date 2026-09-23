@@ -8,7 +8,7 @@ echo "🛑 Stopping STU Media Downloader (macOS)"
 echo "=================================================="
 
 # Run common stop logic
-./stop_downloader.sh
+./Linux_stop_downloader.sh
 
 sleep 1
 

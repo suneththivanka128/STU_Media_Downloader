@@ -26,14 +26,14 @@ A high-performance, cross-platform media downloader combining a robust Python Fl
 
 | Platform | Command |
 |---|---|
-| 🐧 **Linux** — terminal | `./start_downloader.sh` |
-| 🐧 **Linux** — silent background | `./start_background.sh` |
-| 🐧 **Linux** — stop | `./stop_downloader.sh` |
-| 🍎 **macOS** — launch | Double-click `start_downloader.command` |
-| 🍎 **macOS** — stop | Double-click `stop_downloader.command` |
-| 🪟 **Windows** — standard | Double-click `start_downloader.bat` |
-| 🪟 **Windows** — silent | Double-click `start_hidden.vbs` |
-| 🪟 **Windows** — stop | Double-click `stop_downloader.bat` |
+| 🐧 **Linux** — terminal | `./Linux_start_downloader.sh` |
+| 🐧 **Linux** — silent background | `./Linux_start_background.sh` |
+| 🐧 **Linux** — stop | `./Linux_stop_downloader.sh` |
+| 🍎 **macOS** — launch | Double-click `macOS_start_downloader.command` |
+| 🍎 **macOS** — stop | Double-click `macOS_stop_downloader.command` |
+| 🪟 **Windows** — standard | Double-click `Windows_start_downloader.bat` |
+| 🪟 **Windows** — silent | Double-click `Windows_start_hidden.vbs` |
+| 🪟 **Windows** — stop | Double-click `Windows_stop_downloader.bat` |
 | 🧩 **In Extension** | Click `⚙️` → **🛑 Stop Server** |
 
 ### 2. Install the Extension
@@ -119,15 +119,15 @@ web-ext build         # creates a .zip for submission to addons.mozilla.org
 
 ```
 STU_Media_Downloader/
-├── start_downloader.sh            # Linux launcher (with auto-update)
-├── start_background.sh            # Linux silent background launcher
-├── stop_downloader.sh             # Linux stop script
-├── start_downloader.bat           # Windows launcher
-├── start_hidden.vbs               # Windows 1-click invisible background launcher
-├── stop_downloader.bat            # Windows stop script
-├── start_downloader.command       # macOS launcher
-├── stop_downloader.command        # macOS stop script
-├── STU-Media-Downloader.desktop   # Linux desktop shortcut
+├── Linux_start_downloader.sh       # Linux launcher (with auto-update)
+├── Linux_start_background.sh       # Linux silent background launcher
+├── Linux_stop_downloader.sh        # Linux stop script
+├── Windows_start_downloader.bat    # Windows launcher
+├── Windows_start_hidden.vbs        # Windows 1-click invisible background launcher
+├── Windows_stop_downloader.bat     # Windows stop script
+├── macOS_start_downloader.command  # macOS launcher
+├── macOS_stop_downloader.command   # macOS stop script
+├── STU-Media-Downloader.desktop    # Linux desktop shortcut
 │
 ├── backend/
 │   ├── app.py                     # Flask server, download engine, SSE, aria2c endpoints

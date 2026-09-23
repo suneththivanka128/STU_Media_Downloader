@@ -50,7 +50,7 @@ if kill -0 "$SERVER_PID" 2>/dev/null; then
     echo "🆔 PID: $SERVER_PID"
     echo "🌐 Server: http://127.0.0.1:5000"
     echo "📝 Logs: backend/server.log"
-    echo "🛑 To stop: run ./stop_downloader.sh"
+    echo "🛑 To stop: run ./Linux_stop_downloader.sh"
     echo "=================================================="
 else
     echo "❌ Failed to start STU Media Downloader. Check backend/server.log for details."
