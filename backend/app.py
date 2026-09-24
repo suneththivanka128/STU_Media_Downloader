@@ -162,7 +162,7 @@ if ALLOWED_ORIGIN == "*":
 else:
     CORS(app, origins=[ALLOWED_ORIGIN])
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 APP_GITHUB_REPO = "suneththivanka128/STU_Media_Downloader"
 
 
@@ -512,7 +512,7 @@ YTDLP_PROGRESS_RE = re.compile(
     re.IGNORECASE
 )
 ARIA2_PROGRESS_RE = re.compile(
-    r"\[#\w+\s+(?P<size>[\d\.]+\w+/[\d\.]+\w+)\((?P<percent>\d+)%\)\s+CN:\d+\s+DL:(?P<speed>[\d\.]+\w+/s)(\s+ETA:(?P<eta>[\d\w:]+))?\]",
+    r"\[#\w+\s+(?P<size>[\d\.]+\w+/[\d\.]+\w+)(?:\((?P<percent>\d+(?:\.\d+)?)%\))?\s+.*?DL:(?P<speed>[^\s\]]+)(\s+ETA:(?P<eta>[^\s\]]+))?\]",
     re.IGNORECASE
 )
 GENERIC_PROGRESS_RE = re.compile(
@@ -618,6 +618,15 @@ def run_download_task(task_id, url, output_format, quality, connections, custom_
         # on sites that validate the Referer header, e.g. yt-dlp --referer "https://site.com/" <url>)
         if referer and isinstance(referer, str) and referer.startswith(("http://", "https://")):
             cmd.extend(["--referer", referer])
+        elif ".m3u8" in url.lower():
+            try:
+                parsed_u = urllib.parse.urlparse(url)
+                netloc_parts = parsed_u.netloc.split(".")
+                if len(netloc_parts) >= 2:
+                    parent_domain = ".".join(netloc_parts[-2:])
+                    cmd.extend(["--referer", f"{parsed_u.scheme}://{parent_domain}/"])
+            except Exception:
+                pass
 
         if output_format.lower() in ("mp3", "m4a", "wav", "flac", "aac", "opus"):
             cmd.extend(["-x", "--audio-format", output_format.lower()])
@@ -711,27 +720,31 @@ def run_download_task(task_id, url, output_format, quality, connections, custom_
                     )
                     return
 
-            if process.returncode == 0:
-                # If final_path was not captured from stdout or does not exist, scan DOWNLOADS_DIR for the newest file
-                if not final_path or not os.path.exists(final_path):
-                    newest_file = None
-                    newest_mtime = started_at - 1
-                    try:
-                        for entry in os.scandir(DOWNLOADS_DIR):
-                            if entry.is_file() and not entry.name.endswith(PARTIAL_FILE_EXTENSIONS):
-                                try:
-                                    st = entry.stat()
-                                    if st.st_mtime >= newest_mtime:
-                                        newest_mtime = st.st_mtime
-                                        newest_file = entry.path
-                                except OSError:
-                                    pass
-                    except Exception:
-                        pass
-                    if newest_file:
-                        final_path = newest_file
+            # If final_path was not captured from stdout or does not exist, scan DOWNLOADS_DIR for the newest file
+            if not final_path or not os.path.exists(final_path):
+                newest_file = None
+                newest_mtime = started_at - 1
+                try:
+                    for entry in os.scandir(DOWNLOADS_DIR):
+                        if entry.is_file() and not entry.name.endswith(PARTIAL_FILE_EXTENSIONS):
+                            try:
+                                st = entry.stat()
+                                if st.st_mtime >= newest_mtime and st.st_size > 0:
+                                    newest_mtime = st.st_mtime
+                                    newest_file = entry.path
+                            except OSError:
+                                pass
+                except Exception:
+                    pass
+                if newest_file:
+                    final_path = newest_file
 
-                if final_path and os.path.exists(final_path):
+            file_saved_successfully = bool(
+                final_path and os.path.exists(final_path) and os.path.isfile(final_path) and os.path.getsize(final_path) > 0
+            )
+
+            if process.returncode == 0 or file_saved_successfully:
+                if final_path and os.path.exists(final_path) and os.path.isfile(final_path):
                     final_size = round(os.path.getsize(final_path) / (1024 * 1024), 2)
                     final_title = Path(final_path).stem
                 else:
@@ -1191,7 +1204,7 @@ DEFAULT_BT_TRACKERS = (
 )
 
 def run_aria2_task(task_id: str, url: str, title: str):
-    """
+    r"""
     Direct aria2c download — handles:
       • magnet:?xt=...        (BitTorrent magnet link)
       • https?://.+\.torrent (torrent metainfo file)
@@ -1258,8 +1271,20 @@ def run_aria2_task(task_id: str, url: str, title: str):
 
         import re as _re
         _aria_progress_re = _re.compile(
-            r"\[#\w+\s+([\d.\w]+)/([\d.\w]+)(?:\((\d+)%\))?\s+.*?\bDL:([\d.\w]+/s|0B)(?:\s+ETA:([^\s\]]+))?"
+            r"\[#\w+\s+(?P<dl>[\d\.]+\w+)/(?P<tot>[\d\.]+\w+)(?:\((?P<pct>\d+(?:\.\d+)?)%\))?\s+.*?\bDL:(?P<spd>[^\s\]]+)(?:\s+ETA:(?P<eta>[^\s\]]+))?"
         )
+
+        def _parse_size_bytes(s: str) -> float:
+            if not s:
+                return 0.0
+            s_clean = s.strip().lower()
+            units = {"b": 1, "k": 1024, "kib": 1024, "m": 1024**2, "mib": 1024**2, "g": 1024**3, "gib": 1024**3, "t": 1024**4, "tib": 1024**4}
+            m_sz = _re.match(r"^([\d\.]+)\s*([a-z]*)$", s_clean)
+            if not m_sz:
+                return 0.0
+            val = float(m_sz.group(1))
+            unit = m_sz.group(2)
+            return val * units.get(unit, 1)
 
         process = None
         error_lines: list[str] = []
@@ -1274,6 +1299,9 @@ def run_aria2_task(task_id: str, url: str, title: str):
                 bufsize=1,
             )
 
+            with active_processes_lock:
+                active_processes[task_id] = process
+
             for raw_line in process.stdout:
                 with active_downloads_lock:
                     if active_downloads.get(task_id, {}).get("status") == "cancelled":
@@ -1286,12 +1314,32 @@ def run_aria2_task(task_id: str, url: str, title: str):
 
                 m = _aria_progress_re.search(line)
                 if m:
-                    downloaded, total, pct_str, speed, eta = m.groups()
-                    try:
-                        pct = int(pct_str) if pct_str is not None else 0
-                    except ValueError:
-                        pct = 0
-                    
+                    groups = m.groupdict()
+                    downloaded = groups.get("dl") or "0B"
+                    total = groups.get("tot") or "0B"
+                    pct_str = groups.get("pct")
+                    speed = groups.get("spd") or "0B"
+                    eta = groups.get("eta") or "--"
+
+                    dl_bytes = _parse_size_bytes(downloaded)
+                    tot_bytes = _parse_size_bytes(total)
+
+                    if tot_bytes > 0:
+                        pct = round((dl_bytes / tot_bytes) * 100.0, 1)
+                    elif pct_str is not None:
+                        try:
+                            pct = round(float(pct_str), 1)
+                        except ValueError:
+                            pct = 0.0
+                    else:
+                        pct = 0.0
+
+                    speed_clean = speed.split("(")[0].strip() if speed else ""
+                    if speed_clean and speed_clean != "0B" and not speed_clean.lower().endswith("/s"):
+                        speed_clean += "/s"
+                    elif speed_clean == "0B" or not speed_clean:
+                        speed_clean = "0 B/s"
+
                     display_size = f"{downloaded} / {total}"
                     if downloaded == "0B" and total == "0B" and is_torrent:
                         display_size = "Connecting to BitTorrent peers..."
@@ -1299,9 +1347,9 @@ def run_aria2_task(task_id: str, url: str, title: str):
                     _update_progress(
                         task_id,
                         percent=pct,
-                        speed=speed or "-- KiB/s",
+                        speed=speed_clean,
                         size=display_size,
-                        eta=eta or "--",
+                        eta=eta,
                     )
                     continue
 
@@ -1317,6 +1365,8 @@ def run_aria2_task(task_id: str, url: str, title: str):
                     error_lines.append(line)
 
             process.wait(timeout=30)
+            with active_processes_lock:
+                active_processes.pop(task_id, None)
 
         except Exception as exc:
             error_lines.append(str(exc))
@@ -1457,6 +1507,27 @@ def progress_stream(task_id):
             time.sleep(0.5)
 
     return Response(generate(), mimetype="text/event-stream")
+
+
+@app.route("/active-tasks", methods=["GET"])
+def get_active_tasks():
+    """Return list of all currently active or queued downloads."""
+    with active_downloads_lock:
+        tasks = []
+        for tid, info in active_downloads.items():
+            st = info.get("status")
+            if st in ("queued", "downloading"):
+                tasks.append({
+                    "task_id": tid,
+                    "title": info.get("title", "Download"),
+                    "status": st,
+                    "percent": info.get("percent", 0),
+                    "speed": info.get("speed", "0 KiB/s"),
+                    "size": info.get("size", "--"),
+                    "eta": info.get("eta", "--"),
+                    "queue_position": info.get("queue_position", 1),
+                })
+    return jsonify({"tasks": tasks})
 
 
 @app.route("/history", methods=["GET"])

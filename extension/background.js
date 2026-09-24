@@ -14,6 +14,31 @@
 const streamsKey = (tabId) => `streams_tab_${tabId}`;
 
 /**
+ * Priority rank for captured M3U8 URLs:
+ * Priority 3 (Highest): Direct master.m3u8, video.m3u8, playlist.m3u8, index.m3u8, manifest.m3u8
+ * Priority 2 (Medium):  Any other URL containing .m3u8
+ * Priority 1 (Lowest):  Constructed M3U8 derived from .ts segment fallback
+ */
+function getStreamPriority(url, isConstructed) {
+  if (!url) return 0;
+  if (isConstructed) return 1;
+  const lower = url.toLowerCase();
+  if (
+    lower.includes("master.m3u8") ||
+    lower.includes("video.m3u8") ||
+    lower.includes("playlist.m3u8") ||
+    lower.includes("index.m3u8") ||
+    lower.includes("manifest.m3u8")
+  ) {
+    return 3;
+  }
+  if (lower.includes(".m3u8")) {
+    return 2;
+  }
+  return 1;
+}
+
+/**
  * Given a captured URL, return the canonical M3U8 playlist URL.
  * • If it's already a .m3u8 URL  → return as-is
  * • If it's a .ts segment URL    → replace the segment filename with index-v1-a1.m3u8
@@ -23,18 +48,16 @@ function toM3u8Url(rawUrl) {
   if (!rawUrl || rawUrl.startsWith("blob:") || rawUrl.startsWith("data:")) return null;
 
   // Already an M3U8 — accept directly
-  if (/\.m3u8/i.test(rawUrl)) return rawUrl;
+  if (/\.m3u8/i.test(rawUrl)) {
+    return { url: rawUrl, isConstructed: false };
+  }
 
   // .ts segment — auto-construct the master playlist URL
-  // Pattern: seg-N-vN-aN.ts (optionally followed by ?query)
-  // e.g. seg-3-v1-a1.ts?expires=...  →  index-v1-a1.m3u8?expires=...
   if (/\.ts(\?|$)/i.test(rawUrl)) {
     const constructed = rawUrl.replace(/seg-\d+-v\d+-a\d+\.ts/i, "index-v1-a1.m3u8");
-    // Only use if it actually changed (meaning the pattern was found)
-    if (constructed !== rawUrl) return constructed;
-
-    // Fallback: simpler pattern — anything ending in .ts? → .m3u8?
-    return rawUrl.replace(/\.ts(\?)/i, ".m3u8$1");
+    if (constructed !== rawUrl) {
+      return { url: constructed, isConstructed: true };
+    }
   }
 
   return null;
@@ -49,10 +72,11 @@ chrome.webRequest.onBeforeRequest.addListener(
     // Ignore background / extension-internal requests
     if (details.tabId < 0) return;
 
-    const m3u8Url = toM3u8Url(details.url);
-    if (!m3u8Url) return;
+    const captured = toM3u8Url(details.url);
+    if (!captured) return;
 
-    const tabId = details.tabId;
+    const m3u8Url = captured.url;
+    const tabId   = details.tabId;
 
     chrome.tabs.get(tabId, (tab) => {
       if (chrome.runtime.lastError || !tab || !tab.url) return;
@@ -70,21 +94,26 @@ chrome.webRequest.onBeforeRequest.addListener(
         if (streams.some((s) => s.url === m3u8Url)) return;
 
         const entry = {
-          url:       m3u8Url,
-          pageUrl:   pageUrl,
-          pageTitle: tab.title || pageUrl,
-          timestamp: Date.now(),
+          url:           m3u8Url,
+          pageUrl:       pageUrl,
+          pageTitle:     tab.title || pageUrl,
+          timestamp:     Date.now(),
+          priority:      getStreamPriority(m3u8Url, captured.isConstructed),
+          isConstructed: captured.isConstructed,
         };
 
-        // Prepend newest, keep max 8 per tab
-        const updated = [entry, ...streams].slice(0, 8);
+        // Sort by Priority first (3 > 2 > 1), then newest timestamp
+        const updated = [entry, ...streams]
+          .sort((a, b) => (b.priority - a.priority) || (b.timestamp - a.timestamp))
+          .slice(0, 10);
 
-        // Persist per-tab list (for the panel in popup)
-        // Also persist as the simple "latest" keys for auto-fill on popup open
+        const topStream = updated[0];
+
+        // Persist per-tab list and highest-priority stream
         chrome.storage.local.set({
           [key]:         updated,
-          detectedM3u8:  m3u8Url,
-          pageUrl:       pageUrl,
+          detectedM3u8:  topStream.url,
+          pageUrl:       topStream.pageUrl,
         });
 
         // Show "HLS" badge so the user knows a stream was captured

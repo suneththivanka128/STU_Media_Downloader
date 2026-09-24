@@ -110,6 +110,9 @@ const torrentBtnText    = document.getElementById("torrentBtnText");
 // ============================================================
 
 document.addEventListener("DOMContentLoaded", async () => {
+  if (window.location.search.includes("mode=tab") || window.innerWidth > 520) {
+    document.body.classList.add("standalone-tab");
+  }
   setupTabs();
   setupEventListeners();
   setupSettingsOverlay();
@@ -656,10 +659,11 @@ function setupEventListeners() {
   // Open Extension in Dedicated Tab
   if (btnOpenInTab) {
     btnOpenInTab.addEventListener("click", () => {
+      const tabUrl = chrome.runtime ? chrome.runtime.getURL("popup.html?mode=tab") : "popup.html?mode=tab";
       if (chrome && chrome.tabs && typeof chrome.tabs.create === "function") {
-        chrome.tabs.create({ url: chrome.runtime.getURL("popup.html") });
+        chrome.tabs.create({ url: tabUrl });
       } else {
-        window.open(window.location.href, "_blank");
+        window.open(tabUrl, "_blank");
       }
     });
   }
@@ -932,10 +936,20 @@ async function startAriaDownload() {
       if (torrentCustomName) torrentCustomName.value = "";
       if (torrentTypeBadge) torrentTypeBadge.classList.add("hidden");
       if (torrentInfoCard) torrentInfoCard.classList.add("hidden");
+
+      // Save active task state for popup restoration
+      const taskTitle = customTitle || "Torrent Download";
+      currentTaskId = data.task_id;
+      if (chrome && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({
+          activeTask: { taskId: currentTaskId, title: taskTitle }
+        });
+      }
+
       // Switch to Queue tab so user sees progress
       switchTab("tab-queue");
       // Start SSE progress tracking
-      listenToProgressStream(data.task_id, customTitle || "Torrent Download");
+      listenToProgressStream(data.task_id, taskTitle);
     } else {
       const err = await res.json().catch(() => ({}));
       showToast(err.error || "Failed to start download ⚠️");
@@ -1309,6 +1323,30 @@ async function startDownload() {
 }
 
 async function restoreActiveQueue() {
+  // Query backend for currently active or queued tasks
+  if (isBackendOnline) {
+    try {
+      const res = await fetch(`${API_BASE}/active-tasks`, { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.tasks && data.tasks.length > 0) {
+          queueBadge.classList.remove("hidden");
+          queueBadge.textContent = String(data.tasks.length);
+          emptyQueue.classList.add("hidden");
+
+          for (const task of data.tasks) {
+            currentTaskId = task.task_id;
+            listenToProgressStream(task.task_id, task.title);
+          }
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not query active tasks from server:", e);
+    }
+  }
+
+  // Fallback to chrome.storage.local
   if (chrome && chrome.storage && chrome.storage.local) {
     chrome.storage.local.get(["activeTask"], (res) => {
       if (res.activeTask && res.activeTask.taskId) {
@@ -1399,12 +1437,12 @@ function listenToProgressStream(taskId, fallbackTitle = "Media Download") {
     try {
       const data = JSON.parse(event.data);
       const status = data.status || "downloading";
-      const pct = data.percent || 0;
+      const pct = typeof data.percent === "number" ? data.percent : parseFloat(data.percent || 0);
       const speed = data.speed || "0 KiB/s";
       const size = data.size || "--";
       const eta = data.eta || "--";
 
-      fillEl.style.width = `${pct}%`;
+      fillEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
       percentEl.textContent = `${pct.toFixed(1)}%`;
       speedEl.textContent = speed;
       sizeEl.textContent = size;

@@ -9,14 +9,18 @@ A high-performance, cross-platform media downloader combining a robust Python Fl
 - ⚡ **3×–5× Multi-Connection Boost:** Multi-segmented acceleration via `aria2c` (up to 16 parallel connections per file).
 - 🎬 **Smart Video Detection & Auto-Open:** Detects HTML5 video players on any website and injects an **⚡ Download** overlay badge. Clicking it opens the popup and pre-fills media details automatically.
 - 📡 **HLS/M3U8 Stream Interception:** Silently captures `.m3u8` playlists and `.ts` segments from any website (including deep CDN paths). Auto-fills the download input — no manual URL copying needed.
-- 🧲 **Torrent & FTP Downloads (NEW in v1.0.2):** New dedicated tab sends magnet links, `.torrent` URLs, `ftp://` paths, and direct HTTPS file links straight to `aria2c` — live progress in the Queue tab.
-- ⚙️ **Settings Overlay (NEW in v1.0.2):** Settings moved from a tab to a slide-down overlay panel triggered by the `⚙️` header icon — eliminating the server status lag on popup open.
+- 🧲 **Torrent & FTP Downloads (NEW in v1.1.0):** Dedicated tab sends magnet links, `.torrent` URLs, `ftp://` paths, and direct HTTPS file links straight to `aria2c` with live speed, percentage, and ETA in the Queue tab.
+- 📡 **HLS/M3U8 Stream Interception & Priority System (NEW in v1.1.0):** Intercepts `.m3u8` playlists and `.ts` segments. Smart Priority Ranking prioritizes real `master.m3u8` / `video.m3u8` links first, with multi-threaded `--concurrent-fragments 16` acceleration and auto-referer headers.
+- 🖥️ **1-Click Desktop Installers (NEW in v1.1.0):** Interactive 1-click installers and uninstallers for Linux, Windows, and macOS to integrate STU Media Downloader into OS App Menus and Desktop screens.
+- ⚡ **Active Queue Restoration & Multi-Browser Sync (NEW in v1.1.0):** `/active-tasks` backend endpoint syncs active downloads across Chrome, Edge, Firefox, and dedicated browser tabs.
+- 🛡️ **Robust Post-Processing Error Recovery (NEW in v1.1.0):** Validates output files on disk so downloads that reach 100% are marked completed even if yt-dlp emits non-fatal post-processing warnings.
+- ⚙️ **Settings Overlay:** Settings moved from a tab to a slide-down overlay panel triggered by the `⚙️` header icon — eliminating server status lag on popup open.
 - 🔄 **Self-Updating Engine:** Automatically checks and applies `yt-dlp` updates on every start.
 - 📡 **Real-time Live Progress (SSE):** Server-Sent Events stream live speed, file size, percentage, and ETA.
 - 🛑 **Task Cancellation & Cleanup:** Cancel any download with immediate partial-file removal (`.part`, `.ytdl`, `.aria2`).
 - 🗄️ **Persistent SQLite History:** Full download records with search, status filters, and pagination.
 - 📂 **Native Folder Picker & File Explorer:** One-click OS folder selection and file manager opening.
-- 🦊 **Firefox Support (NEW in v1.0.2):** Separate `extension-firefox/` folder with Manifest V2 for Firefox 109+.
+- 🦊 **Firefox Support:** Separate `extension-firefox/` folder with Manifest V2 for Firefox 109+.
 
 ---
 
@@ -24,17 +28,34 @@ A high-performance, cross-platform media downloader combining a robust Python Fl
 
 ### 1. Launch the Backend Server
 
-| Platform | Command |
+| Platform | Command / Action |
 |---|---|
-| 🐧 **Linux** — terminal | `./Linux_start_downloader.sh` |
+| 🐧 **Linux** — install shortcut | `./Linux_install_shortcut.sh` |
+| 🐧 **Linux** — remove shortcut | `./Linux_uninstall_shortcut.sh` |
+| 🐧 **Linux** — terminal launch | `./Linux_start_downloader.sh` |
 | 🐧 **Linux** — silent background | `./Linux_start_background.sh` |
 | 🐧 **Linux** — stop | `./Linux_stop_downloader.sh` |
+| 🍎 **macOS** — install shortcut | Double-click `macOS_install_shortcut.command` |
+| 🍎 **macOS** — remove shortcut | Double-click `macOS_uninstall_shortcut.command` |
 | 🍎 **macOS** — launch | Double-click `macOS_start_downloader.command` |
 | 🍎 **macOS** — stop | Double-click `macOS_stop_downloader.command` |
-| 🪟 **Windows** — standard | Double-click `Windows_start_downloader.bat` |
-| 🪟 **Windows** — silent | Double-click `Windows_start_hidden.vbs` |
+| 🪟 **Windows** — install shortcut | Double-click `Windows_install_shortcut.bat` |
+| 🪟 **Windows** — remove shortcut | Double-click `Windows_uninstall_shortcut.bat` |
+| 🪟 **Windows** — standard launch | Double-click `Windows_start_downloader.bat` |
+| 🪟 **Windows** — silent background | Double-click `Windows_start_hidden.vbs` |
 | 🪟 **Windows** — stop | Double-click `Windows_stop_downloader.bat` |
 | 🧩 **In Extension** | Click `⚙️` → **🛑 Stop Server** |
+
+#### 🖥️ Desktop Shortcut Setup & Cleanup (Cross-Platform)
+
+You can automatically add **STU Media Downloader** to your OS Application / Start Menu and Desktop Screen:
+
+- 🐧 **Linux:** Run `./Linux_install_shortcut.sh` (or `./Linux_uninstall_shortcut.sh` to remove).
+- 🪟 **Windows:** Double-click `Windows_install_shortcut.bat` (or `Windows_uninstall_shortcut.bat` to remove).
+- 🍎 **macOS:** Double-click `macOS_install_shortcut.command` (or `macOS_uninstall_shortcut.command` to remove).
+
+*(All installers provide an interactive prompt to choose whether to install or remove shortcuts from the Application/Start Menu, Desktop Screen, or Both).*
+
 
 ### 2. Install the Extension
 
@@ -199,7 +220,41 @@ STU_Media_Downloader/
 
 ## 📋 Changelog
 
-### v1.0.2 — Torrent/FTP, Firefox, Settings Overlay
+### v1.1.0 — Torrent & FTP Engine, HLS Stream Acceleration, 1-Click Installers
+**Released:** September 2026
+
+#### ✨ Major Features & Improvements
+
+- **🧲 Torrent & FTP Engine:** Direct `aria2c` multi-connection integration:
+  - `magnet:?xt=...` BitTorrent magnet links, `.torrent` URLs, `ftp://` / `sftp://`, and direct HTTPS links
+  - Fixed live speed, percentage, file size (`downloaded / total`), and remaining time tracking
+  - Process tracking for task cancellation and partial file cleanup
+
+- **📡 HLS (m3u8) Stream Interception & Priority System:**
+  - **Stream Priority Ranking (`getStreamPriority`):** Real `master.m3u8` / `video.m3u8` playlist links take Highest Priority (Priority 3), preventing lower-quality or fallback `.ts` constructed links from overwriting valid playlists
+  - **Auto-Referer Fallback:** Automatically passes `--referer "https://domain/"` for protected HLS stream hosts (e.g. `vidsonic.net`, `vixeo.io`)
+  - **Multi-Threaded HLS Acceleration:** `--concurrent-fragments 16` enables up to 10x faster HLS video downloads
+
+- **🖥️ 1-Click Cross-Platform Desktop Installers:**
+  - Interactive bash, batch, and command installers with prompts `[1-4]` (App Menu, Desktop, Both, Cancel):
+  - 🐧 Linux: `Linux_install_shortcut.sh`, `Linux_uninstall_shortcut.sh`
+  - 🪟 Windows: `Windows_install_shortcut.bat`, `Windows_uninstall_shortcut.bat`
+  - 🍎 macOS: `macOS_install_shortcut.command`, `macOS_uninstall_shortcut.command`
+
+- **⚡ Active Queue Restoration & Multi-Browser Sync:**
+  - `/active-tasks` backend endpoint restores live active/queued download cards upon opening popup or switching tabs
+  - Multi-browser sync across Chrome, Edge, Firefox, and dedicated tab dashboards
+
+- **🛡️ Robust Post-Processing Error Recovery:**
+  - Validates completed output files on disk (`> 0 bytes`) so downloads that reach 100% are marked **Completed** even if `yt-dlp` emits non-fatal post-processing warnings (e.g. JSON metadata parse errors)
+
+- **🎨 CSS Responsive UI & Linter Fixes:**
+  - Dedicated tab view with max-width container and wide options grid
+  - Fixed VS Code CSS syntax linter errors in `popup.css`
+
+---
+
+### v1.0.2 — Settings Overlay & Firefox Support
 **Released:** September 2026
 
 #### ✨ New Features
