@@ -62,8 +62,7 @@ backend/.server.pid
 *~
 
 # Development & Internal Documentation
-Dev_Doc/
-dev_doc/
+# Dev_Doc/
 
 # Operating System Files
 .DS_Store
