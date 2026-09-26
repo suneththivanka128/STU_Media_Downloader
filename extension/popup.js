@@ -65,7 +65,7 @@ const btnCheckAppUpdate = document.getElementById("btnCheckAppUpdate");
 const appUpdateIcon = document.getElementById("appUpdateIcon");
 const appUpdateText = document.getElementById("appUpdateText");
 
-let currentAppVersion = "1.0.2";
+let currentAppVersion = "1.2.0";
 let isDevEnvironment = false;
 
 // Settings Elements
