@@ -185,3 +185,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
   }
 });
+
+// Open getting started / backend setup page on first-time installation
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === "install") {
+    chrome.tabs.create({
+      url: "https://github.com/suneththivanka128/STU_Media_Downloader#readme"
+    });
+  }
+});
