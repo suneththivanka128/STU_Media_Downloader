@@ -26,7 +26,54 @@ A high-performance, cross-platform media downloader combining a robust Python Fl
 
 ## 🚀 Quick Start
 
-### 1. Launch the Backend Server
+### 📦 1. Clone/Download & Permanent Location Setup
+
+#### Step A: Get the Application from GitHub
+Choose one of the following methods:
+
+- **Option 1: Clone via Git CLI (Recommended for 1-click updates)**
+  ```bash
+  git clone https://github.com/suneththivanka128/STU_Media_Downloader.git
+  ```
+
+- **Option 2: Download ZIP Package**
+  1. Go to [GitHub Releases / Code Page](https://github.com/suneththivanka128/STU_Media_Downloader).
+  2. Click **Code ➔ Download ZIP**.
+  3. Extract the `.zip` archive on your system.
+
+#### Step B: Move to a Permanent System Location (Recommended)
+Before running the desktop shortcut installers, move the project folder to a permanent directory so system shortcuts and extension paths remain intact even if your temporary/Downloads folder is cleared:
+
+- 🐧 **Linux:** Move to `~/.local/share/` or home folder:
+  ```bash
+  mv STU_Media_Downloader ~/.local/share/
+  cd ~/.local/share/STU_Media_Downloader
+  ```
+
+- 🪟 **Windows:** Move to `C:\STU_Media_Downloader` or `%LOCALAPPDATA%`:
+  ```cmd
+  move STU_Media_Downloader C:\STU_Media_Downloader
+  cd C:\STU_Media_Downloader
+  ```
+
+- 🍎 **macOS:** Move to `~/Applications/`:
+  ```bash
+  mv STU_Media_Downloader ~/Applications/
+  cd ~/Applications/STU_Media_Downloader
+  ```
+
+#### Step C: Run 1-Click Desktop Shortcut Installer
+Once the folder is in its permanent location, run the installer to link STU Media Downloader to your OS Application Menu and Desktop screen:
+
+- 🐧 **Linux:** `./Linux_install_shortcut.sh`
+- 🪟 **Windows:** Double-click `Windows_install_shortcut.bat`
+- 🍎 **macOS:** Double-click `macOS_install_shortcut.command`
+
+*(All installers provide an interactive prompt to choose whether to install shortcuts to Application/Start Menu, Desktop Screen, or Both).*
+
+---
+
+### 🖥️ 2. Launch the Backend Server
 
 | Platform | Command / Action |
 |---|---|
@@ -46,18 +93,9 @@ A high-performance, cross-platform media downloader combining a robust Python Fl
 | 🪟 **Windows** — stop | Double-click `Windows_stop_downloader.bat` |
 | 🧩 **In Extension** | Click `⚙️` → **🛑 Stop Server** |
 
-#### 🖥️ Desktop Shortcut Setup & Cleanup (Cross-Platform)
+---
 
-You can automatically add **STU Media Downloader** to your OS Application / Start Menu and Desktop Screen:
-
-- 🐧 **Linux:** Run `./Linux_install_shortcut.sh` (or `./Linux_uninstall_shortcut.sh` to remove).
-- 🪟 **Windows:** Double-click `Windows_install_shortcut.bat` (or `Windows_uninstall_shortcut.bat` to remove).
-- 🍎 **macOS:** Double-click `macOS_install_shortcut.command` (or `macOS_uninstall_shortcut.command` to remove).
-
-*(All installers provide an interactive prompt to choose whether to install or remove shortcuts from the Application/Start Menu, Desktop Screen, or Both).*
-
-
-### 2. Install the Extension
+### 🧩 3. Install the Browser Extension
 
 #### 🌐 Chrome / Edge / Brave (Manifest V3)
 
