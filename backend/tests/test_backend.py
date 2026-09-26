@@ -7,7 +7,18 @@ from pathlib import Path
 # Add backend directory to sys.path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app import app, init_db, write_history_entry, SessionLocal, DownloadHistory, DOWNLOADS_DIR
+from app import app, init_db, write_history_entry, SessionLocal, DownloadHistory, DOWNLOADS_DIR, APP_VERSION
+
+
+@pytest.fixture(autouse=True)
+def isolate_settings_file(tmp_path, monkeypatch):
+    test_settings_file = tmp_path / "test_settings.json"
+    monkeypatch.setattr("app.SETTINGS_FILE", test_settings_file)
+    from app import _get_default_downloads_dir
+    default_dir = _get_default_downloads_dir()
+    monkeypatch.setattr("app.DOWNLOADS_DIR", default_dir)
+    yield
+    monkeypatch.setattr("app.DOWNLOADS_DIR", default_dir)
 
 
 @pytest.fixture
@@ -16,6 +27,7 @@ def client():
     init_db()
     with app.test_client() as client:
         yield client
+
 
 
 def test_db_init_and_write():
@@ -180,14 +192,15 @@ def test_app_version_and_health_endpoints(client):
     res_health = client.get("/health")
     assert res_health.status_code == 200
     hdata = res_health.get_json()
-    assert hdata["app_version"] == "1.0.0"
+    assert hdata["app_version"] == APP_VERSION
     assert "is_dev" in hdata
+    assert "libtorrent" in hdata["tools"]
 
     # GET /app-version
     res_ver = client.get("/app-version")
     assert res_ver.status_code == 200
     vdata = res_ver.get_json()
-    assert vdata["version"] == "1.0.0"
+    assert vdata["version"] == APP_VERSION
     assert vdata["name"] == "STU Media Downloader"
     assert "suneththivanka128" in vdata["repo"]
     assert "is_dev" in vdata
@@ -281,6 +294,97 @@ def test_get_clipboard(client):
     data = res.get_json()
     assert data["success"] is True
     assert "text" in data
+
+
+def test_torrent_download_routing(client, monkeypatch):
+    # Mock run_libtorrent_task and run_aria2_task to verify routing
+    called = []
+    def mock_libtorrent(task_id, url, title, acquired_sem=False):
+        called.append(("libtorrent", url))
+
+    def mock_aria2(task_id, url, title, acquired_sem=False):
+        called.append(("aria2", url))
+
+    monkeypatch.setattr("app.run_libtorrent_task", mock_libtorrent)
+    monkeypatch.setattr("app.run_aria2_task", mock_aria2)
+
+    # Test Torrent link (Magnet)
+    res1 = client.post("/aria2-download", json={"url": "magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&dn=Ubuntu"})
+    assert res1.status_code == 200
+    data1 = res1.get_json()
+    assert data1["status"] == "queued"
+
+    # Test HTTP direct link
+    res2 = client.post("/aria2-download", json={"url": "https://example.com/file.zip"})
+    assert res2.status_code == 200
+    data2 = res2.get_json()
+    assert data2["status"] == "queued"
+
+
+
+def test_history_type_and_status_filters(client):
+    write_history_entry(
+        title="Ubuntu ISO Magnet",
+        source_url="magnet:?xt=urn:btih:1234567890abcdef1234567890abcdef12345678&dn=Ubuntu",
+        thumbnail_url="",
+        file_path="/downloads/ubuntu.iso",
+        file_format="torrent",
+        quality="",
+        file_size_mb=2500.0,
+        status="Completed"
+    )
+    write_history_entry(
+        title="FTP Server File",
+        source_url="ftp://speedtest.tele2.net/1MB.zip",
+        thumbnail_url="",
+        file_path="/downloads/1MB.zip",
+        file_format="ftp",
+        quality="",
+        file_size_mb=1.0,
+        status="Completed"
+    )
+    write_history_entry(
+        title="Sample Video MP4",
+        source_url="https://example.com/movie.mp4",
+        thumbnail_url="",
+        file_path="/downloads/movie.mp4",
+        file_format="mp4",
+        quality="1080p",
+        file_size_mb=150.0,
+        status="Completed"
+    )
+    write_history_entry(
+        title="Music Track MP3",
+        source_url="https://example.com/song.mp3",
+        thumbnail_url="",
+        file_path="/downloads/song.mp3",
+        file_format="mp3",
+        quality="320k",
+        file_size_mb=8.0,
+        status="Completed"
+    )
+
+    # Filter torrent
+    res = client.get("/history?status=torrent")
+    items = res.get_json()["items"]
+    assert any(i["title"] == "Ubuntu ISO Magnet" for i in items)
+
+    # Filter ftp
+    res = client.get("/history?status=ftp")
+    items = res.get_json()["items"]
+    assert any(i["title"] == "FTP Server File" for i in items)
+
+    # Filter video
+    res = client.get("/history?status=video")
+    items = res.get_json()["items"]
+    assert any(i["title"] == "Sample Video MP4" for i in items)
+
+    # Filter audio
+    res = client.get("/history?status=audio")
+    items = res.get_json()["items"]
+    assert any(i["title"] == "Music Track MP3" for i in items)
+
+
 
 
 

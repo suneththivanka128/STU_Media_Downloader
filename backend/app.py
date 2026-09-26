@@ -29,7 +29,7 @@ from threading import Lock, Semaphore
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, or_, and_
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Optional: curl-cffi for browser TLS impersonation (Cloudflare / bot-detection bypass)
@@ -38,6 +38,14 @@ try:
     CURL_CFFI_AVAILABLE = True
 except ImportError:
     CURL_CFFI_AVAILABLE = False
+
+# Optional: libtorrent Python bindings for native BitTorrent download engine
+try:
+    import libtorrent as lt
+    LIBTORRENT_AVAILABLE = True
+except ImportError:
+    LIBTORRENT_AVAILABLE = False
+
 
 
 
@@ -131,14 +139,17 @@ def save_settings_to_file(new_settings):
 
 current_settings = load_settings()
 
-# If custom download_dir was configured in settings, apply it
+# If custom download_dir was configured in settings, apply it (ignore temporary test paths)
 if current_settings.get("download_dir"):
     try:
-        _custom_p = Path(current_settings["download_dir"]).expanduser().resolve()
-        _custom_p.mkdir(parents=True, exist_ok=True)
-        DOWNLOADS_DIR = _custom_p
+        raw_dir = str(current_settings["download_dir"]).strip()
+        if raw_dir and "/tmp/pytest" not in raw_dir and "pytest-of-" not in raw_dir:
+            _custom_p = Path(raw_dir).expanduser().resolve()
+            _custom_p.mkdir(parents=True, exist_ok=True)
+            DOWNLOADS_DIR = _custom_p
     except Exception as _e:
         print(f"[Notice] Using default DOWNLOADS_DIR: {DOWNLOADS_DIR}", file=sys.stderr)
+
 
 ytdlp_update_state = {
     "checked_at": None,
@@ -162,7 +173,7 @@ if ALLOWED_ORIGIN == "*":
 else:
     CORS(app, origins=[ALLOWED_ORIGIN])
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 APP_GITHUB_REPO = "suneththivanka128/STU_Media_Downloader"
 
 
@@ -808,6 +819,7 @@ def health():
             "aria2c": bool(shutil.which("aria2c")),
             "ffmpeg": bool(shutil.which("ffmpeg")),
             "curl_cffi": CURL_CFFI_AVAILABLE,
+            "libtorrent": LIBTORRENT_AVAILABLE,
         },
         "ytdlp_update": ytdlp_update_state,
     })
@@ -1203,7 +1215,238 @@ DEFAULT_BT_TRACKERS = (
     "udp://exodus.desync.com:6969/announce"
 )
 
-def run_aria2_task(task_id: str, url: str, title: str):
+def _format_lt_speed(bytes_per_sec: float) -> str:
+    if bytes_per_sec <= 0:
+        return "0 B/s"
+    units = ["B/s", "KiB/s", "MiB/s", "GiB/s", "TiB/s"]
+    i = 0
+    val = float(bytes_per_sec)
+    while val >= 1024 and i < len(units) - 1:
+        val /= 1024.0
+        i += 1
+    return f"{val:.1f} {units[i]}"
+
+
+def _format_lt_bytes(b: float) -> str:
+    if b <= 0:
+        return "0B"
+    units = ["B", "KiB", "MiB", "GiB", "TiB"]
+    i = 0
+    val = float(b)
+    while val >= 1024 and i < len(units) - 1:
+        val /= 1024.0
+        i += 1
+    return f"{val:.1f}{units[i]}"
+
+
+def run_libtorrent_task(task_id: str, url: str, title: str, acquired_sem: bool = False):
+    """
+    BitTorrent download via native libtorrent Python bindings.
+    If libtorrent fails or encounters an error, falls back seamlessly to run_aria2_task.
+    """
+    acquired = False
+    if not acquired_sem:
+        acquired = download_semaphore.acquire(timeout=None)
+    else:
+        acquired = True
+
+    try:
+        _dequeue(task_id)
+        with active_downloads_lock:
+            if active_downloads.get(task_id, {}).get("status") == "cancelled":
+                return
+
+        if not LIBTORRENT_AVAILABLE:
+            raise RuntimeError("libtorrent Python bindings module is not installed.")
+
+        # Initialize libtorrent session
+        try:
+            ses = lt.session({'listen_interfaces': '0.0.0.0:6881'})
+        except Exception:
+            ses = lt.session()
+            try:
+                ses.listen_on(6881, 6891)
+            except Exception:
+                pass
+
+        # Apply recommended torrent session settings
+        try:
+            settings = ses.get_settings()
+            if isinstance(settings, dict):
+                settings['enable_dht'] = True
+                settings['enable_lsd'] = True
+                settings['enable_upnp'] = True
+                settings['enable_natpmp'] = True
+                settings['active_downloads'] = 5
+                ses.set_settings(settings)
+        except Exception:
+            pass
+
+        try:
+            ses.start_dht()
+        except Exception:
+            pass
+
+        started_at = time.time()
+        _update_progress(
+            task_id, status="downloading",
+            percent=0, speed="0 KiB/s", size="Connecting to BitTorrent peers...", eta="--",
+            title=title, thumbnail_url=None,
+        )
+
+        handle = None
+        torrent_temp_file = None
+
+        if url.startswith("magnet:"):
+            if hasattr(lt, "parse_magnet_uri"):
+                params = lt.parse_magnet_uri(url)
+                params.save_path = str(DOWNLOADS_DIR)
+                handle = ses.add_torrent(params)
+            else:
+                params = {'url': url, 'save_path': str(DOWNLOADS_DIR)}
+                handle = ses.add_torrent(params)
+        elif url.startswith("http://") or url.startswith("https://"):
+            resp = requests.get(url, timeout=25)
+            resp.raise_for_status()
+            torrent_temp_file = os.path.join(DOWNLOADS_DIR, f"temp_{task_id}.torrent")
+            with open(torrent_temp_file, "wb") as f:
+                f.write(resp.content)
+
+            info = lt.torrent_info(torrent_temp_file)
+            if hasattr(lt, "add_torrent_params"):
+                params = lt.add_torrent_params()
+                params.ti = info
+                params.save_path = str(DOWNLOADS_DIR)
+                handle = ses.add_torrent(params)
+            else:
+                handle = ses.add_torrent({'ti': info, 'save_path': str(DOWNLOADS_DIR)})
+        elif os.path.exists(url):
+            info = lt.torrent_info(url)
+            if hasattr(lt, "add_torrent_params"):
+                params = lt.add_torrent_params()
+                params.ti = info
+                params.save_path = str(DOWNLOADS_DIR)
+                handle = ses.add_torrent(params)
+            else:
+                handle = ses.add_torrent({'ti': info, 'save_path': str(DOWNLOADS_DIR)})
+        else:
+            raise ValueError(f"Invalid torrent source link: {url}")
+
+        if not handle or not handle.is_valid():
+            raise RuntimeError("Failed to add torrent to libtorrent session.")
+
+        metadata_timeout = 90  # seconds wait for metadata before fallback
+        metadata_start = time.time()
+
+        while True:
+            with active_downloads_lock:
+                if active_downloads.get(task_id, {}).get("status") == "cancelled":
+                    try:
+                        ses.remove_torrent(handle, getattr(lt.options, 'delete_files', 1))
+                    except Exception:
+                        pass
+                    _cleanup_partial_files(started_at)
+                    _update_progress(task_id, status="cancelled")
+                    return
+
+            s = handle.status()
+
+            if s.is_seeding or s.state in (getattr(lt.torrent_status, 'seeding', 5), getattr(lt.torrent_status, 'finished', 4)):
+                break
+
+            has_meta = handle.has_metadata() if hasattr(handle, "has_metadata") else s.has_metadata
+
+            if has_meta:
+                tot_bytes = s.total_wanted if getattr(s, 'total_wanted', 0) > 0 else getattr(s, 'total_wanted_done', 0)
+                if tot_bytes == 0:
+                    try:
+                        info = handle.get_torrent_info()
+                        tot_bytes = info.total_size()
+                    except Exception:
+                        tot_bytes = 0
+
+                dl_bytes = getattr(s, 'total_wanted_done', getattr(s, 'total_done', 0))
+                pct = round(s.progress * 100.0, 1) if s.progress > 0 else 0.0
+
+                spd_str = _format_lt_speed(s.download_rate)
+                size_str = f"{_format_lt_bytes(dl_bytes)} / {_format_lt_bytes(tot_bytes)}" if tot_bytes > 0 else "Downloading torrent metadata..."
+
+                eta_str = "--"
+                if s.download_rate > 0 and tot_bytes > dl_bytes:
+                    rem_sec = int((tot_bytes - dl_bytes) / s.download_rate)
+                    m, sec = divmod(rem_sec, 60)
+                    h, m = divmod(m, 60)
+                    if h > 0:
+                        eta_str = f"{h}h {m}m"
+                    elif m > 0:
+                        eta_str = f"{m}m {sec}s"
+                    else:
+                        eta_str = f"{sec}s"
+
+                _update_progress(
+                    task_id,
+                    percent=pct,
+                    speed=spd_str,
+                    size=size_str,
+                    eta=eta_str,
+                )
+            else:
+                if time.time() - metadata_start > metadata_timeout:
+                    raise TimeoutError("libtorrent metadata fetch timed out. Falling back to aria2c...")
+                _update_progress(
+                    task_id,
+                    percent=0,
+                    speed="0 KiB/s",
+                    size="Connecting to BitTorrent peers...",
+                    eta="--",
+                )
+
+            time.sleep(1)
+
+        # Download completed!
+        final_path = ""
+        try:
+            info = handle.get_torrent_info()
+            final_path = os.path.join(DOWNLOADS_DIR, info.name())
+        except Exception:
+            final_path = os.path.join(DOWNLOADS_DIR, title)
+
+        size_mb = 0.0
+        if os.path.exists(final_path):
+            if os.path.isfile(final_path):
+                size_mb = round(os.path.getsize(final_path) / (1024 * 1024), 2)
+            elif os.path.isdir(final_path):
+                total_bytes = sum(
+                    os.path.getsize(os.path.join(r, f))
+                    for r, _, files in os.walk(final_path)
+                    for f in files
+                )
+                size_mb = round(total_bytes / (1024 * 1024), 2)
+
+        _update_progress(task_id, status="completed", percent=100, speed="", eta="Done")
+        write_history_entry(
+            title=title, source_url=url, thumbnail_url=None,
+            file_path=final_path, file_format="torrent", quality="best",
+            file_size_mb=size_mb, status="Completed", error_message=None,
+        )
+
+        if torrent_temp_file and os.path.exists(torrent_temp_file):
+            try:
+                os.remove(torrent_temp_file)
+            except Exception:
+                pass
+
+    except Exception as exc:
+        print(f"⚠️ [libtorrent] Engine warning/error on task {task_id}: {exc}")
+        print(f"🔄 Falling back seamlessly to aria2c engine...")
+        run_aria2_task(task_id, url, title, acquired_sem=acquired)
+        acquired = False
+    finally:
+        if acquired:
+            download_semaphore.release()
+
+
+def run_aria2_task(task_id: str, url: str, title: str, acquired_sem: bool = False):
     r"""
     Direct aria2c download — handles:
       • magnet:?xt=...        (BitTorrent magnet link)
@@ -1212,7 +1455,12 @@ def run_aria2_task(task_id: str, url: str, title: str):
       • https?://...          (any direct HTTP/S link — bypasses yt-dlp)
     Progress is streamed via the same SSE /progress-stream/<task_id> endpoint.
     """
-    acquired = download_semaphore.acquire(timeout=None)
+    acquired = False
+    if not acquired_sem:
+        acquired = download_semaphore.acquire(timeout=None)
+    else:
+        acquired = True
+
     try:
         _dequeue(task_id)
         with active_downloads_lock:
@@ -1428,7 +1676,7 @@ def run_aria2_task(task_id: str, url: str, title: str):
 
 @app.route("/aria2-download", methods=["POST"])
 def start_aria2_download():
-    """Start a direct aria2c download (torrent / FTP / HTTP)."""
+    """Start a direct download (torrent / FTP / HTTP). Torrent -> libtorrent (with aria2c fallback), FTP/HTTP -> aria2c."""
     data = request.get_json(force=True)
     url = (data.get("url") or "").strip()
     if not url:
@@ -1461,12 +1709,18 @@ def start_aria2_download():
             "url": url,
         }
     _enqueue(task_id)
-    executor.submit(run_aria2_task, task_id, url, title)
+
+    is_torrent = url.startswith("magnet:") or url.lower().endswith(".torrent")
+    if is_torrent and LIBTORRENT_AVAILABLE:
+        executor.submit(run_libtorrent_task, task_id, url, title)
+    else:
+        executor.submit(run_aria2_task, task_id, url, title)
 
     with active_downloads_lock:
         position = active_downloads[task_id].get("queue_position", 1)
 
     return jsonify({"task_id": task_id, "status": "queued", "queue_position": position})
+
 
 
 @app.route("/cancel/<task_id>", methods=["POST"])
@@ -1543,7 +1797,52 @@ def get_history():
         if search_query:
             query = query.filter(DownloadHistory.title.ilike(f"%{search_query}%"))
         if status_filter and status_filter.lower() != "all":
-            query = query.filter(DownloadHistory.status.ilike(status_filter))
+            sf = status_filter.lower()
+            if sf in ("completed", "failed", "cancelled"):
+                query = query.filter(DownloadHistory.status.ilike(sf))
+            elif sf == "torrent":
+                query = query.filter(
+                    or_(
+                        DownloadHistory.file_format.ilike("torrent"),
+                        DownloadHistory.source_url.ilike("magnet:%"),
+                        DownloadHistory.source_url.ilike("%.torrent")
+                    )
+                )
+            elif sf == "ftp":
+                query = query.filter(
+                    or_(
+                        DownloadHistory.file_format.ilike("ftp"),
+                        DownloadHistory.source_url.ilike("ftp://%"),
+                        DownloadHistory.source_url.ilike("sftp://%")
+                    )
+                )
+            elif sf == "video":
+                video_exts = ["mp4", "mkv", "webm", "avi", "mov", "flv", "wmv", "m4v"]
+                query = query.filter(
+                    or_(*[DownloadHistory.file_format.ilike(ext) for ext in video_exts])
+                )
+            elif sf == "audio":
+                audio_exts = ["mp3", "m4a", "wav", "flac", "aac", "ogg", "opus", "wma"]
+                query = query.filter(
+                    or_(*[DownloadHistory.file_format.ilike(ext) for ext in audio_exts])
+                )
+            elif sf == "direct":
+                video_exts = ["mp4", "mkv", "webm", "avi", "mov", "flv", "wmv", "m4v"]
+                audio_exts = ["mp3", "m4a", "wav", "flac", "aac", "ogg", "opus", "wma"]
+                query = query.filter(
+                    and_(
+                        ~DownloadHistory.file_format.ilike("torrent"),
+                        ~DownloadHistory.file_format.ilike("ftp"),
+                        ~DownloadHistory.source_url.ilike("magnet:%"),
+                        ~DownloadHistory.source_url.ilike("%.torrent"),
+                        ~DownloadHistory.source_url.ilike("ftp://%"),
+                        ~DownloadHistory.source_url.ilike("sftp://%"),
+                        ~or_(*[DownloadHistory.file_format.ilike(ext) for ext in video_exts]),
+                        ~or_(*[DownloadHistory.file_format.ilike(ext) for ext in audio_exts])
+                    )
+                )
+            else:
+                query = query.filter(DownloadHistory.status.ilike(status_filter))
 
         total = query.count()
         rows = (
@@ -1939,10 +2238,50 @@ def check_and_ensure_curl_cffi():
         print("   ↳ Run manually:  pip install curl-cffi")
 
 
+def check_and_ensure_libtorrent():
+    """Auto-install libtorrent on first run if it is not already available.
+
+    libtorrent Python bindings enable native, high-performance BitTorrent downloading
+    with precise progress tracking, peer management, and DHT support.
+    Installation is done into the *same* Python environment running app.py.
+    """
+    global LIBTORRENT_AVAILABLE, lt  # noqa: PLW0603
+
+    if LIBTORRENT_AVAILABLE:
+        print("⚡ [libtorrent] Already installed — native BitTorrent engine ready.")
+        return
+
+    print("🔄 [libtorrent] Not found. Auto-installing libtorrent Python bindings...")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "libtorrent", "--quiet"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=180,
+        )
+        if result.returncode == 0:
+            try:
+                import libtorrent as _lt
+                lt = _lt
+                LIBTORRENT_AVAILABLE = True
+                print(f"✅ [libtorrent] Installed successfully (v{_lt.__version__}) — native BitTorrent engine active.")
+            except ImportError:
+                print("⚠️ [libtorrent] Installed via pip but import failed. Torrents will use aria2c engine as fallback.")
+        else:
+            err = (result.stderr or result.stdout or "unknown error").strip()
+            print(f"⚠️ [libtorrent] Auto-install failed: {err}")
+            print("   ↳ Torrents will seamlessly fall back to aria2c engine.")
+    except Exception as exc:
+        print(f"⚠️ [libtorrent] Auto-install exception: {exc}")
+        print("   ↳ Torrents will seamlessly fall back to aria2c engine.")
+
+
 if __name__ == "__main__":
     _write_pid_file()
     init_db()
     check_and_ensure_curl_cffi()
+    check_and_ensure_libtorrent()
     check_and_update_ytdlp()
     verify_external_tools()
 
@@ -1953,3 +2292,4 @@ if __name__ == "__main__":
     else:
         print("⚡ [STU Media Downloader] Running in development mode on http://127.0.0.1:5000")
         app.run(host="127.0.0.1", port=5000, debug=True, threaded=True)
+

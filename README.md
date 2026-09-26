@@ -214,11 +214,41 @@ STU_Media_Downloader/
 ./backend/venv/bin/pytest backend/tests/test_backend.py -v
 ```
 
-15 tests covering: health endpoints, database operations, path-traversal security, task cancellation, settings persistence, server shutdown, app update checks, folder picker, and clipboard reading.
+17 tests covering: health endpoints, database operations, path-traversal security, task cancellation, settings persistence, server shutdown, app update checks, folder picker, clipboard reading, and history category & status query filters.
 
 ---
 
 ## 📋 Changelog
+
+### v1.2.0 — Extended History Filters, Fixed Popup Dimensions & Open-Source Credits
+**Released:** September 2026
+
+#### ✨ Major Features & Improvements
+
+- **📜 Extended Download History Filters:**
+  - Expanded filter options in Extension popup UI & Backend `/history` endpoint for:
+    - Media Types: `🎬 Video`, `🎵 Audio`, `🧲 Torrent`, `📡 FTP`, `🔗 Direct`
+    - Task Status: `✅ Completed`, `❌ Failed`, `⏸ Cancelled`
+
+- **🎛️ Fixed Compact Popup Height & UX Polish:**
+  - Fixed popup dimensions (`420px x 580px`) with flex column container and internal scroll.
+  - Tab switching (`Media` ➔ `Torrent & FTP` ➔ `Queue` ➔ `History`) no longer resizes or jumps the browser popup window.
+
+- **⚡ Dynamic Server Health & Error Resilience:**
+  - Auto-pings `/health` dynamically on update checks, settings opening, folder browsing, and history loading to eliminate false "Backend offline" messages.
+  - Added null-checks around DOM status element references to prevent uncaught runtime TypeErrors.
+
+- **ℹ️ About & Open-Source Credits:**
+  - Added dedicated **ℹ️ About & Open Source** subtab under Settings overlay crediting core open-source engines and libraries (`yt-dlp`, `libtorrent`, `aria2c`, `FFmpeg`, `Python & Flask`, `SQLAlchemy & SQLite`).
+  - Added an acknowledgment & gratitude statement for open-source contributors.
+
+- **🚫 Empty Input Validation & Feedback:**
+  - Added glowing border and `@keyframes shake-error` animation when clicking Download or Scan buttons with empty inputs.
+
+- **🧪 Pytest Suite Expansion:**
+  - Expanded Pytest suite to 17 unit tests covering all backend endpoints and filtering logic.
+
+---
 
 ### v1.1.0 — Torrent & FTP Engine, HLS Stream Acceleration, 1-Click Installers
 **Released:** September 2026

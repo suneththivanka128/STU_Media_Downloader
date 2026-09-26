@@ -99,6 +99,7 @@ const btnCloseSettings  = document.getElementById("btnCloseSettings");
 // Torrent & FTP Tab
 const torrentUrlInput  = document.getElementById("torrentUrlInput");
 const torrentTypeBadge = document.getElementById("torrentTypeBadge");
+const torrentEngineBadge = document.getElementById("torrentEngineBadge");
 const torrentInfoCard  = document.getElementById("torrentInfoCard");
 const torrentInfoIcon  = document.getElementById("torrentInfoIcon");
 const torrentInfoName  = document.getElementById("torrentInfoName");
@@ -106,7 +107,12 @@ const torrentInfoMeta  = document.getElementById("torrentInfoMeta");
 const torrentCustomName = document.getElementById("torrentCustomName");
 const btnTorrentDownload = document.getElementById("btnTorrentDownload");
 const btnTorrentPaste   = document.getElementById("btnTorrentPaste");
+const btnTorrentFile    = document.getElementById("btnTorrentFile");
+const torrentFileInput  = document.getElementById("torrentFileInput");
 const torrentBtnText    = document.getElementById("torrentBtnText");
+
+
+
 
 // ============================================================
 // 1. INITIALIZATION & SERVER STATUS
@@ -135,9 +141,9 @@ async function checkServerHealth() {
     if (res.ok) {
       const data = await res.json();
       isBackendOnline = true;
-      statusDot.className = "status-dot online";
-      statusText.textContent = "Online";
-      serverAlert.classList.add("hidden");
+      if (statusDot) statusDot.className = "status-dot online";
+      if (statusText) statusText.textContent = "Online";
+      if (serverAlert) serverAlert.classList.add("hidden");
 
       if (data.ytdlp_update) {
         handleYtdlpUpdateNotice(data.ytdlp_update);
@@ -156,9 +162,9 @@ async function checkServerHealth() {
     // Offline
   }
   isBackendOnline = false;
-  statusDot.className = "status-dot offline";
-  statusText.textContent = "Offline";
-  serverAlert.classList.remove("hidden");
+  if (statusDot) statusDot.className = "status-dot offline";
+  if (statusText) statusText.textContent = "Offline";
+  if (serverAlert) serverAlert.classList.remove("hidden");
   if (settingServerStatus) settingServerStatus.textContent = "Server is offline";
   if (settingAppStatus) settingAppStatus.textContent = "Server offline";
   if (btnShutdownServer) btnShutdownServer.disabled = true;
@@ -187,17 +193,39 @@ function handleYtdlpUpdateNotice(info) {
   }
 
   if (info.updated && updateBanner) {
-    updateBannerTitle.textContent = "⚡ Engine Updated!";
-    updateBannerDesc.textContent = info.message || `yt-dlp updated to ${info.version}`;
+    updateBannerTitle.textContent = "⚡ Media Engine Updated!";
+    updateBannerDesc.textContent = info.message || `Media extractor updated to ${info.version}`;
     updateBanner.classList.remove("hidden");
-    showToast(`🎉 yt-dlp updated to v${info.version}! Extractors up to date.`, 5000);
+    showToast(`🎉 Media Extractor Engine updated to v${info.version}! Latest extractors loaded.`, 5000);
   }
+}
+
+function setupSettingsSubtabs() {
+  const subtabBtns = document.querySelectorAll(".subtab-btn");
+  subtabBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.getAttribute("data-subtab");
+      subtabBtns.forEach((b) => b.classList.toggle("active", b === btn));
+      document.querySelectorAll(".subtab-pane").forEach((pane) => {
+        pane.classList.toggle("hidden", pane.id !== targetId);
+      });
+    });
+  });
 }
 
 function showToast(message, duration = 3000) {
   popupToast.textContent = message;
   popupToast.classList.remove("hidden");
   setTimeout(() => popupToast.classList.add("hidden"), duration);
+}
+
+function highlightEmptyInput(inputEl, message) {
+  if (inputEl) {
+    inputEl.classList.add("input-error");
+    inputEl.focus();
+    setTimeout(() => inputEl.classList.remove("input-error"), 1500);
+  }
+  showToast(message || "⚠️ Please enter a URL first");
 }
 
 // ============================================================
@@ -523,6 +551,7 @@ async function fetchActiveTabUrl() {
 }
 
 function setupEventListeners() {
+  setupSettingsSubtabs();
   btnRetryServer.addEventListener("click", async () => {
     const ok = await checkServerHealth();
     if (ok) {
@@ -627,9 +656,9 @@ function setupEventListeners() {
 
   // Manual Scan button
   btnScanMedia.addEventListener("click", () => {
-    const url = mediaUrlInput.value.trim();
+    const url = mediaUrlInput ? mediaUrlInput.value.trim() : "";
     if (!url) {
-      showToast("Please enter a media URL first");
+      highlightEmptyInput(mediaUrlInput, "⚠️ Please enter a media URL first!");
       return;
     }
     triggerScan(url);
@@ -675,8 +704,11 @@ function setupEventListeners() {
   if (btnBrowseFolder) {
     btnBrowseFolder.addEventListener("click", async () => {
       if (!isBackendOnline) {
-        showToast("⚠️ Backend offline — start STU Downloader server first");
-        return;
+        const ok = await checkServerHealth();
+        if (!ok) {
+          showToast("⚠️ Backend offline — start STU Downloader server first");
+          return;
+        }
       }
       const prevHtml = btnBrowseFolder.innerHTML;
       btnBrowseFolder.innerHTML = "⏳ Choosing...";
@@ -789,13 +821,13 @@ function setupSettingsOverlay() {
   });
 }
 
-function openSettingsPanel() {
+async function openSettingsPanel() {
   if (!settingsPanel) return;
   settingsPanel.classList.remove("hidden");
   if (btnToggleSettings) btnToggleSettings.classList.add("active");
   // Run health check + settings load when panel first opens
-  checkServerHealth().catch(() => {});
-  loadAndApplySettings();
+  await checkServerHealth().catch(() => {});
+  await loadAndApplySettings();
 }
 
 function closeSettingsPanel() {
@@ -817,25 +849,45 @@ function detectTorrentType(url) {
 function updateTorrentUI(url) {
   const type = detectTorrentType(url);
   if (!type) {
-    torrentTypeBadge.classList.add("hidden");
-    torrentInfoCard.classList.add("hidden");
-    btnTorrentDownload.disabled = true;
+    if (torrentTypeBadge) torrentTypeBadge.classList.add("hidden");
+    if (torrentEngineBadge) torrentEngineBadge.classList.add("hidden");
+    if (torrentInfoCard) torrentInfoCard.classList.add("hidden");
+    if (btnTorrentDownload) {
+      btnTorrentDownload.disabled = false;
+      if (torrentBtnText) torrentBtnText.textContent = "🧲 Start Download";
+    }
     return;
   }
 
   // Type badge
-  torrentTypeBadge.className = `torrent-type-badge type-${type}`;
-  const labels = {
-    torrent: "🧲 Torrent — magnet/BitTorrent",
-    ftp:     "📡 FTP — direct server download",
-    direct:  "🔗 Direct HTTP — bypass yt-dlp",
-  };
-  torrentTypeBadge.textContent = labels[type];
-  torrentTypeBadge.classList.remove("hidden");
+  if (torrentTypeBadge) {
+    torrentTypeBadge.className = `torrent-type-badge type-${type}`;
+    const labels = {
+      torrent: "🧲 Torrent — BitTorrent Protocol",
+      ftp:     "📡 FTP — Direct Server Path",
+      direct:  "🔗 Direct HTTP — Multi-Threaded",
+    };
+    torrentTypeBadge.textContent = labels[type];
+    torrentTypeBadge.classList.remove("hidden");
+  }
+
+  // Engine badge
+  if (torrentEngineBadge) {
+    torrentEngineBadge.classList.remove("hidden");
+    if (type === "torrent") {
+      torrentEngineBadge.textContent = "⚡ BitTorrent Protocol Enabled";
+    } else if (type === "ftp") {
+      torrentEngineBadge.textContent = "⚡ FTP Protocol Enabled";
+    } else {
+      torrentEngineBadge.textContent = "⚡ Multi-Thread Acceleration (16x)";
+    }
+  }
 
   // Info card
-  const icons = { torrent: "🧲", ftp: "📡", direct: "🔗" };
-  torrentInfoIcon.textContent = icons[type];
+  if (torrentInfoIcon) {
+    const icons = { torrent: "🧲", ftp: "📡", direct: "🔗" };
+    torrentInfoIcon.textContent = icons[type];
+  }
 
   let name = "";
   let meta = "";
@@ -844,24 +896,20 @@ function updateTorrentUI(url) {
       const qs = new URLSearchParams(url.slice(url.indexOf("?") + 1));
       name = qs.get("dn") || "Torrent (name unknown)";
       const trackers = qs.getAll("tr").length;
-      meta = trackers ? `${trackers} tracker(s)` : "";
+      meta = trackers ? `${trackers} tracker(s)` : "BitTorrent Network";
     } catch (_) { name = "Magnet Link"; }
   } else {
     try {
-      name = decodeURIComponent(url.split("?")[0].rstrip
-        ? url.split("?")[0]
-        : url.split("?")[0]
-      ).split("/").filter(Boolean).pop() || url;
+      const u = url.split("?")[0];
+      name = u.split("/").filter(Boolean).pop() || url;
+      meta = url.split("/")[2] || "";
     } catch (_) { name = url; }
-    const u = url.split("?")[0];
-    name = u.split("/").filter(Boolean).pop() || url;
-    meta = url.split("/")[2] || "";
   }
 
-  torrentInfoName.textContent = name;
-  torrentInfoMeta.textContent = meta;
-  torrentInfoCard.classList.remove("hidden");
-  btnTorrentDownload.disabled = false;
+  if (torrentInfoName) torrentInfoName.textContent = name;
+  if (torrentInfoMeta) torrentInfoMeta.textContent = meta;
+  if (torrentInfoCard) torrentInfoCard.classList.remove("hidden");
+  if (btnTorrentDownload) btnTorrentDownload.disabled = false;
 
   const btnLabels = { torrent: "🧲 Download Torrent", ftp: "📡 Download via FTP", direct: "🔗 Download Direct" };
   if (torrentBtnText) torrentBtnText.textContent = btnLabels[type];
@@ -871,8 +919,21 @@ function setupTorrentTab() {
   if (torrentUrlInput) {
     torrentUrlInput.addEventListener("input", () => updateTorrentUI(torrentUrlInput.value.trim()));
     torrentUrlInput.addEventListener("paste", (e) => {
-      // Small delay to let the value update after paste
       setTimeout(() => updateTorrentUI(torrentUrlInput.value.trim()), 50);
+    });
+  }
+
+  if (btnTorrentFile && torrentFileInput) {
+    btnTorrentFile.addEventListener("click", () => torrentFileInput.click());
+    torrentFileInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) {
+        if (torrentUrlInput) {
+          torrentUrlInput.value = file.name;
+          updateTorrentUI(file.name);
+        }
+        showToast(`📁 Selected torrent file: ${file.name}`);
+      }
     });
   }
 
@@ -885,7 +946,6 @@ function setupTorrentTab() {
           updateTorrentUI(text.trim());
         }
       } catch (_) {
-        // Clipboard API unavailable — try backend
         try {
           const res = await fetch(`${API_BASE}/clipboard`);
           if (res.ok) {
@@ -908,7 +968,7 @@ function setupTorrentTab() {
 async function startAriaDownload() {
   const url = torrentUrlInput ? torrentUrlInput.value.trim() : "";
   if (!url) {
-    showToast("Please enter a URL first");
+    highlightEmptyInput(torrentUrlInput, "⚠️ Enter a Magnet/FTP URL or select a .torrent file first!");
     return;
   }
 
@@ -933,14 +993,13 @@ async function startAriaDownload() {
 
     if (res.ok) {
       const data = await res.json();
-      showToast(`⚡ Download queued! Check the Queue tab. (Position: ${data.queue_position})`);
-      // Clear input
+      showToast(`⚡ Download queued! Tracking live progress...`);
       if (torrentUrlInput) torrentUrlInput.value = "";
       if (torrentCustomName) torrentCustomName.value = "";
       if (torrentTypeBadge) torrentTypeBadge.classList.add("hidden");
+      if (torrentEngineBadge) torrentEngineBadge.classList.add("hidden");
       if (torrentInfoCard) torrentInfoCard.classList.add("hidden");
 
-      // Save active task state for popup restoration
       const taskTitle = customTitle || "Torrent Download";
       currentTaskId = data.task_id;
       const storageObj = typeof browser !== "undefined" && browser.storage ? browser.storage.local : (chrome && chrome.storage ? chrome.storage.local : null);
@@ -948,8 +1007,9 @@ async function startAriaDownload() {
         storageObj.set({ activeTask: { taskId: currentTaskId, title: taskTitle } });
       }
 
-      // Switch to Queue tab so user sees progress
+      // Switch to Queue tab so download progress is tracked only in Queue
       switchTab("tab-queue");
+
       // Start SSE progress tracking
       listenToProgressStream(data.task_id, taskTitle);
     } else {
@@ -957,7 +1017,7 @@ async function startAriaDownload() {
       showToast(err.error || "Failed to start download ⚠️");
     }
   } catch (e) {
-    console.error("Error starting aria2 download:", e);
+    console.error("Error starting torrent download:", e);
     showToast(e.name === "TypeError" ? "Network error — is the backend running?" : `Error: ${e.message}`);
   } finally {
     btnTorrentDownload.disabled = false;
@@ -995,17 +1055,17 @@ async function shutdownBackendServer() {
     }
 
     isBackendOnline = false;
-    statusDot.className = "status-dot offline";
-    statusText.textContent = "Offline";
-    serverAlert.classList.remove("hidden");
+    if (statusDot) statusDot.className = "status-dot offline";
+    if (statusText) statusText.textContent = "Offline";
+    if (serverAlert) serverAlert.classList.remove("hidden");
     if (settingServerStatus) settingServerStatus.textContent = "Server is offline";
     if (btnShutdownServer) btnShutdownServer.disabled = true;
     showToast("🛑 STU Downloader backend stopped successfully");
   } catch (e) {
     isBackendOnline = false;
-    statusDot.className = "status-dot offline";
-    statusText.textContent = "Offline";
-    serverAlert.classList.remove("hidden");
+    if (statusDot) statusDot.className = "status-dot offline";
+    if (statusText) statusText.textContent = "Offline";
+    if (serverAlert) serverAlert.classList.remove("hidden");
     if (settingServerStatus) settingServerStatus.textContent = "Server is offline";
     if (btnShutdownServer) btnShutdownServer.disabled = true;
     showToast("🛑 Backend server stopped");
@@ -1014,8 +1074,11 @@ async function shutdownBackendServer() {
 
 async function checkAppUpdate() {
   if (!isBackendOnline) {
-    showToast("Backend offline — please start backend server first");
-    return;
+    const ok = await checkServerHealth();
+    if (!ok) {
+      showToast("Backend offline — please start backend server first");
+      return;
+    }
   }
 
   if (appUpdateIcon) appUpdateIcon.classList.add("btn-icon-spin");
@@ -1055,8 +1118,11 @@ async function checkAppUpdate() {
 
 async function checkEngineUpdate() {
   if (!isBackendOnline) {
-    showToast("Backend offline — please start backend server first");
-    return;
+    const ok = await checkServerHealth();
+    if (!ok) {
+      showToast("Backend offline — please start backend server first");
+      return;
+    }
   }
 
   if (engineUpdateIcon) engineUpdateIcon.classList.add("btn-icon-spin");
@@ -1069,9 +1135,9 @@ async function checkEngineUpdate() {
       const info = await res.json();
       handleYtdlpUpdateNotice(info);
       if (info.updated) {
-        showToast(`🎉 yt-dlp updated to ${info.version}! Latest extractors loaded ⚡`, 5000);
+        showToast(`🎉 Extractor engine updated to ${info.version}! Latest extractors loaded ⚡`, 5000);
       } else {
-        showToast(`✅ yt-dlp is up to date (${info.version})!`, 4000);
+        showToast(`✅ Extractor engine is up to date (${info.version})!`, 4000);
       }
     } else {
       showToast("⚠️ Could not check for updates");
@@ -1259,9 +1325,9 @@ function renderPreview(data) {
 // ============================================================
 
 async function startDownload() {
-  const url = mediaUrlInput.value.trim();
+  const url = mediaUrlInput ? mediaUrlInput.value.trim() : "";
   if (!url) {
-    showToast("Please enter a media URL");
+    highlightEmptyInput(mediaUrlInput, "⚠️ Enter or scan a video/audio URL first!");
     return;
   }
 
@@ -1445,26 +1511,34 @@ function listenToProgressStream(taskId, fallbackTitle = "Media Download") {
       const size = data.size || "--";
       const eta = data.eta || "--";
 
-      fillEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
-      percentEl.textContent = `${pct.toFixed(1)}%`;
-      speedEl.textContent = speed;
-      sizeEl.textContent = size;
-      etaEl.textContent = eta;
+      if (fillEl) fillEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+      if (percentEl) percentEl.textContent = `${pct.toFixed(1)}%`;
+      if (speedEl) speedEl.textContent = speed;
+      if (sizeEl) sizeEl.textContent = size;
+      if (etaEl) etaEl.textContent = eta;
+
+
 
       if (status === "queued") {
-        statusBadge.className = "badge-status queued";
-        statusBadge.textContent = `Queued (#${data.queue_position || 1})`;
+        if (statusBadge) {
+          statusBadge.className = "badge-status queued";
+          statusBadge.textContent = `Queued (#${data.queue_position || 1})`;
+        }
       } else if (status === "downloading") {
-        statusBadge.className = "badge-status downloading";
-        statusBadge.textContent = "⚡ Downloading";
+        if (statusBadge) {
+          statusBadge.className = "badge-status downloading";
+          statusBadge.textContent = "⚡ Downloading";
+        }
       } else if (status === "completed") {
-        statusBadge.className = "badge-status completed";
-        statusBadge.textContent = "✅ Completed";
-        fillEl.style.width = "100%";
-        percentEl.textContent = "100%";
-        speedEl.textContent = "Done";
-        sizeEl.textContent = data.size || "Saved";
-        etaEl.textContent = "00:00";
+        if (statusBadge) {
+          statusBadge.className = "badge-status completed";
+          statusBadge.textContent = "✅ Completed";
+        }
+        if (fillEl) fillEl.style.width = "100%";
+        if (percentEl) percentEl.textContent = "100%";
+        if (speedEl) speedEl.textContent = "Done";
+        if (sizeEl) sizeEl.textContent = data.size || "Saved";
+        if (etaEl) etaEl.textContent = "00:00";
         activeEventSource.close();
         clearActiveTaskStorage();
         showToast("✅ Download completed successfully!");
@@ -1486,8 +1560,10 @@ function listenToProgressStream(taskId, fallbackTitle = "Media Download") {
           }
         }, 3000);
       } else if (status === "failed" || status === "cancelled") {
-        statusBadge.className = `badge-status ${status}`;
-        statusBadge.textContent = status === "failed" ? "❌ Failed" : "⏸ Cancelled";
+        if (statusBadge) {
+          statusBadge.className = `badge-status ${status}`;
+          statusBadge.textContent = status === "failed" ? "❌ Failed" : "⏸ Cancelled";
+        }
         activeEventSource.close();
         clearActiveTaskStorage();
       }
@@ -1532,8 +1608,11 @@ function clearActiveTaskStorage() {
 
 async function loadHistory(page = 1) {
   if (!isBackendOnline) {
-    historyList.innerHTML = `<div class="empty-state"><p>Connect backend to view download history.</p></div>`;
-    return;
+    const ok = await checkServerHealth();
+    if (!ok) {
+      historyList.innerHTML = `<div class="empty-state"><p>Connect backend to view download history.</p></div>`;
+      return;
+    }
   }
 
   historyCurrentPage = page;

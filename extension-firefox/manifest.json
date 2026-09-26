@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "STU Media Downloader",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "STU Media Downloader — Lightning-fast media downloader with aria2c multi-connection acceleration, HLS stream detection, live progress, and history.",
   "icons": {
     "16": "icons/icon-16.png",

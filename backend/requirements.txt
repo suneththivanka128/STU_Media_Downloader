@@ -7,3 +7,5 @@ requests>=2.31.0
 pytest>=8.0.0
 Pillow>=10.0.0
 curl-cffi>=0.7.0
+libtorrent>=2.0.0
+
