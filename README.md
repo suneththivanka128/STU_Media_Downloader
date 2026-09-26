@@ -26,7 +26,54 @@ A high-performance, cross-platform media downloader combining a robust Python Fl
 
 ## 🚀 Quick Start
 
-### 1. Launch the Backend Server
+### 📦 1. Clone/Download & Permanent Location Setup
+
+#### Step A: Get the Application from GitHub
+Choose one of the following methods:
+
+- **Option 1: Clone via Git CLI (Recommended for 1-click updates)**
+  ```bash
+  git clone https://github.com/suneththivanka128/STU_Media_Downloader.git
+  ```
+
+- **Option 2: Download ZIP Package**
+  1. Go to [GitHub Releases / Code Page](https://github.com/suneththivanka128/STU_Media_Downloader).
+  2. Click **Code ➔ Download ZIP**.
+  3. Extract the `.zip` archive on your system.
+
+#### Step B: Move to a Permanent System Location (Recommended)
+Before running the desktop shortcut installers, move the project folder to a permanent directory so system shortcuts and extension paths remain intact even if your temporary/Downloads folder is cleared:
+
+- 🐧 **Linux:** Move to `~/.local/share/` or home folder:
+  ```bash
+  mv STU_Media_Downloader ~/.local/share/
+  cd ~/.local/share/STU_Media_Downloader
+  ```
+
+- 🪟 **Windows:** Move to `C:\STU_Media_Downloader` or `%LOCALAPPDATA%`:
+  ```cmd
+  move STU_Media_Downloader C:\STU_Media_Downloader
+  cd C:\STU_Media_Downloader
+  ```
+
+- 🍎 **macOS:** Move to `~/Applications/`:
+  ```bash
+  mv STU_Media_Downloader ~/Applications/
+  cd ~/Applications/STU_Media_Downloader
+  ```
+
+#### Step C: Run 1-Click Desktop Shortcut Installer
+Once the folder is in its permanent location, run the installer to link STU Media Downloader to your OS Application Menu and Desktop screen:
+
+- 🐧 **Linux:** `./Linux_install_shortcut.sh`
+- 🪟 **Windows:** Double-click `Windows_install_shortcut.bat`
+- 🍎 **macOS:** Double-click `macOS_install_shortcut.command`
+
+*(All installers provide an interactive prompt to choose whether to install shortcuts to Application/Start Menu, Desktop Screen, or Both).*
+
+---
+
+### 🖥️ 2. Launch the Backend Server
 
 | Platform | Command / Action |
 |---|---|
@@ -46,18 +93,9 @@ A high-performance, cross-platform media downloader combining a robust Python Fl
 | 🪟 **Windows** — stop | Double-click `Windows_stop_downloader.bat` |
 | 🧩 **In Extension** | Click `⚙️` → **🛑 Stop Server** |
 
-#### 🖥️ Desktop Shortcut Setup & Cleanup (Cross-Platform)
+---
 
-You can automatically add **STU Media Downloader** to your OS Application / Start Menu and Desktop Screen:
-
-- 🐧 **Linux:** Run `./Linux_install_shortcut.sh` (or `./Linux_uninstall_shortcut.sh` to remove).
-- 🪟 **Windows:** Double-click `Windows_install_shortcut.bat` (or `Windows_uninstall_shortcut.bat` to remove).
-- 🍎 **macOS:** Double-click `macOS_install_shortcut.command` (or `macOS_uninstall_shortcut.command` to remove).
-
-*(All installers provide an interactive prompt to choose whether to install or remove shortcuts from the Application/Start Menu, Desktop Screen, or Both).*
-
-
-### 2. Install the Extension
+### 🧩 3. Install the Browser Extension
 
 #### 🌐 Chrome / Edge / Brave (Manifest V3)
 
@@ -214,11 +252,41 @@ STU_Media_Downloader/
 ./backend/venv/bin/pytest backend/tests/test_backend.py -v
 ```
 
-15 tests covering: health endpoints, database operations, path-traversal security, task cancellation, settings persistence, server shutdown, app update checks, folder picker, and clipboard reading.
+17 tests covering: health endpoints, database operations, path-traversal security, task cancellation, settings persistence, server shutdown, app update checks, folder picker, clipboard reading, and history category & status query filters.
 
 ---
 
 ## 📋 Changelog
+
+### v1.2.0 — Extended History Filters, Fixed Popup Dimensions & Open-Source Credits
+**Released:** September 2026
+
+#### ✨ Major Features & Improvements
+
+- **📜 Extended Download History Filters:**
+  - Expanded filter options in Extension popup UI & Backend `/history` endpoint for:
+    - Media Types: `🎬 Video`, `🎵 Audio`, `🧲 Torrent`, `📡 FTP`, `🔗 Direct`
+    - Task Status: `✅ Completed`, `❌ Failed`, `⏸ Cancelled`
+
+- **🎛️ Fixed Compact Popup Height & UX Polish:**
+  - Fixed popup dimensions (`420px x 580px`) with flex column container and internal scroll.
+  - Tab switching (`Media` ➔ `Torrent & FTP` ➔ `Queue` ➔ `History`) no longer resizes or jumps the browser popup window.
+
+- **⚡ Dynamic Server Health & Error Resilience:**
+  - Auto-pings `/health` dynamically on update checks, settings opening, folder browsing, and history loading to eliminate false "Backend offline" messages.
+  - Added null-checks around DOM status element references to prevent uncaught runtime TypeErrors.
+
+- **ℹ️ About & Open-Source Credits:**
+  - Added dedicated **ℹ️ About & Open Source** subtab under Settings overlay crediting core open-source engines and libraries (`yt-dlp`, `libtorrent`, `aria2c`, `FFmpeg`, `Python & Flask`, `SQLAlchemy & SQLite`).
+  - Added an acknowledgment & gratitude statement for open-source contributors.
+
+- **🚫 Empty Input Validation & Feedback:**
+  - Added glowing border and `@keyframes shake-error` animation when clicking Download or Scan buttons with empty inputs.
+
+- **🧪 Pytest Suite Expansion:**
+  - Expanded Pytest suite to 17 unit tests covering all backend endpoints and filtering logic.
+
+---
 
 ### v1.1.0 — Torrent & FTP Engine, HLS Stream Acceleration, 1-Click Installers
 **Released:** September 2026

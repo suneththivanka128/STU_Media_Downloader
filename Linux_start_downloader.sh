@@ -44,7 +44,7 @@ if [ "$1" = "--dev" ]; then
 fi
 
 # [Default] Production Mode — Fast, multi-threaded WSGI server via Waitress (No dev warnings)
-# ./backend/venv/bin/python3 backend/app.py $MODE_FLAG
+./backend/venv/bin/python3 backend/app.py $MODE_FLAG
 
 # [Optional] Development Mode (Auto-reloads on file save)
-./backend/venv/bin/python3 backend/app.py
+# ./backend/venv/bin/python3 backend/app.py

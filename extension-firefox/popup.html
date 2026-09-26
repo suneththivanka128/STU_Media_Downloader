@@ -40,8 +40,8 @@
       <div class="update-content">
         <span class="update-icon">🚀</span>
         <div class="update-msg">
-          <strong id="updateBannerTitle">Core Engine Updated</strong>
-          <span id="updateBannerDesc">yt-dlp updated to latest version!</span>
+          <strong id="updateBannerTitle">Media Engine Updated</strong>
+          <span id="updateBannerDesc">Extractor engine updated to latest version!</span>
         </div>
       </div>
       <button class="btn-dismiss" id="btnDismissUpdate" title="Dismiss">✕</button>
@@ -50,120 +50,170 @@
     <!-- Settings Overlay Panel (toggled by ⚙️ header button) -->
     <div class="settings-overlay hidden" id="settingsPanel">
       <div class="settings-overlay-header">
-        <div class="status-indicator" id="serverStatus" title="Local Server Status">
-          <span class="status-dot offline" id="statusDot"></span>
-          <span class="status-text" id="statusText">Checking...</span>
+        <div class="settings-subtabs">
+          <button type="button" class="subtab-btn active" data-subtab="subtab-settings">⚙️ Settings</button>
+          <button type="button" class="subtab-btn" data-subtab="subtab-about">ℹ️ About &amp; Open Source</button>
         </div>
         <button type="button" class="btn-settings-close" id="btnCloseSettings" title="Close Settings">✕</button>
       </div>
       <div class="settings-overlay-body">
-        <div class="settings-group">
-          <div class="settings-item">
-            <div class="settings-label">
-              <strong>Simultaneous Downloads</strong>
-              <small>How many files download at the same time</small>
+        <!-- SUBTAB 1: SETTINGS CONTROLS -->
+        <div class="subtab-pane active" id="subtab-settings">
+          <div class="settings-group">
+            <div class="settings-item">
+              <div class="settings-label">
+                <strong>Simultaneous Downloads</strong>
+                <small>How many files download at the same time</small>
+              </div>
+              <select id="settingConcurrent" class="settings-select" title="Simultaneous Downloads Limit" aria-label="Simultaneous Downloads Limit">
+                <option value="1">1 download</option>
+                <option value="2">2 parallel</option>
+                <option value="3" selected>3 parallel (Default)</option>
+                <option value="4">4 parallel</option>
+                <option value="5">5 parallel (High Speed)</option>
+              </select>
             </div>
-            <select id="settingConcurrent" class="settings-select" title="Simultaneous Downloads Limit" aria-label="Simultaneous Downloads Limit">
-              <option value="1">1 download</option>
-              <option value="2">2 parallel</option>
-              <option value="3" selected>3 parallel (Default)</option>
-              <option value="4">4 parallel</option>
-              <option value="5">5 parallel (High Speed)</option>
-            </select>
-          </div>
-          <div class="settings-item">
-            <div class="settings-label">
-              <strong>Default Connections (Threads)</strong>
-              <small>Parallel threads per file (1-16)</small>
+            <div class="settings-item">
+              <div class="settings-label">
+                <strong>Default Connections (Threads)</strong>
+                <small>Parallel threads per file (1-16)</small>
+              </div>
+              <select id="settingConnections" class="settings-select" title="Default Connections per Download" aria-label="Default Connections per Download">
+                <option value="4">4x Connections</option>
+                <option value="8">8x Connections</option>
+                <option value="16" selected>16x Connections (Max)</option>
+              </select>
             </div>
-            <select id="settingConnections" class="settings-select" title="Default Connections per Download" aria-label="Default Connections per Download">
-              <option value="4">4x Connections</option>
-              <option value="8">8x Connections</option>
-              <option value="16" selected>16x Connections (Max)</option>
-            </select>
-          </div>
-          <div class="settings-item">
-            <div class="settings-label">
-              <strong>Default Output Format</strong>
-              <small>Preferred format for downloads</small>
+            <div class="settings-item">
+              <div class="settings-label">
+                <strong>Default Output Format</strong>
+                <small>Preferred format for downloads</small>
+              </div>
+              <select id="settingFormat" class="settings-select" title="Default Output Format" aria-label="Default Output Format">
+                <option value="mp4" selected>MP4 (Video)</option>
+                <option value="mkv">MKV (Video)</option>
+                <option value="webm">WebM (Video)</option>
+                <option value="mp3">MP3 (Audio)</option>
+              </select>
             </div>
-            <select id="settingFormat" class="settings-select" title="Default Output Format" aria-label="Default Output Format">
-              <option value="mp4" selected>MP4 (Video)</option>
-              <option value="mkv">MKV (Video)</option>
-              <option value="webm">WebM (Video)</option>
-              <option value="mp3">MP3 (Audio)</option>
-            </select>
-          </div>
-          <div class="settings-item">
-            <div class="settings-label">
-              <strong>Default Quality</strong>
-              <small>Default video resolution</small>
+            <div class="settings-item">
+              <div class="settings-label">
+                <strong>Default Quality</strong>
+                <small>Default video resolution</small>
+              </div>
+              <select id="settingQuality" class="settings-select" title="Default Download Quality" aria-label="Default Download Quality">
+                <option value="best" selected>Best Available</option>
+                <option value="1080p">1080p (Full HD)</option>
+                <option value="720p">720p (HD)</option>
+                <option value="480p">480p (SD)</option>
+                <option value="360p">360p</option>
+              </select>
             </div>
-            <select id="settingQuality" class="settings-select" title="Default Download Quality" aria-label="Default Download Quality">
-              <option value="best" selected>Best Available</option>
-              <option value="1080p">1080p (Full HD)</option>
-              <option value="720p">720p (HD)</option>
-              <option value="480p">480p (SD)</option>
-              <option value="360p">360p</option>
-            </select>
-          </div>
-          <div class="settings-item">
-            <div class="settings-label">
-              <strong>Downloads Location</strong>
-              <small id="settingDownloadDirText" class="settings-path-text">Loading path...</small>
-            </div>
-            <button type="button" class="btn-secondary btn-settings-action" id="btnOpenDownloadsFolder" title="Open Downloads Folder in File Explorer">
-              📁 Open Folder
-            </button>
-          </div>
-          <div class="settings-item">
-            <div class="settings-label">
-              <strong>Custom Download Folder</strong>
-              <small id="settingCustomDirDisplay" class="settings-path-text" title="Default: System Downloads">Default: System Downloads</small>
-            </div>
-            <div class="settings-folder-actions">
-              <button type="button" class="btn-secondary btn-settings-action" id="btnBrowseFolder" title="Choose custom download folder">
-                📁 Browse...
-              </button>
-              <button type="button" class="btn-secondary btn-settings-action btn-reset-folder hidden" id="btnResetFolder" title="Reset to default Downloads folder">
-                ✕
+            <div class="settings-item">
+              <div class="settings-label">
+                <strong>Downloads Location</strong>
+                <small id="settingDownloadDirText" class="settings-path-text">Loading path...</small>
+              </div>
+              <button type="button" class="btn-secondary btn-settings-action" id="btnOpenDownloadsFolder" title="Open Downloads Folder in File Explorer">
+                📁 Open Folder
               </button>
             </div>
-            <input type="hidden" id="settingDownloadDir" value="">
-          </div>
-          <div class="settings-item">
-            <div class="settings-label">
-              <strong>STU Downloader</strong>
-              <small id="settingAppStatus">Checking app version...</small>
+            <div class="settings-item">
+              <div class="settings-label">
+                <strong>Custom Download Folder</strong>
+                <small id="settingCustomDirDisplay" class="settings-path-text" title="Default: System Downloads">Default: System Downloads</small>
+              </div>
+              <div class="settings-folder-actions">
+                <button type="button" class="btn-secondary btn-settings-action" id="btnBrowseFolder" title="Choose custom download folder">
+                  📁 Browse...
+                </button>
+                <button type="button" class="btn-secondary btn-settings-action btn-reset-folder hidden" id="btnResetFolder" title="Reset to default Downloads folder">
+                  ✕
+                </button>
+              </div>
+              <input type="hidden" id="settingDownloadDir" value="">
             </div>
-            <button type="button" class="btn-secondary btn-settings-action" id="btnCheckAppUpdate" title="Check for STU Downloader updates">
-              <span id="appUpdateIcon">🔄</span>
-              <span id="appUpdateText">Check Update</span>
-            </button>
-          </div>
-          <div class="settings-item">
-            <div class="settings-label">
-              <strong>Core Engine (yt-dlp)</strong>
-              <small id="settingEngineStatus">Checking engine version...</small>
+            <div class="settings-item">
+              <div class="settings-label">
+                <strong>STU Downloader App</strong>
+                <small id="settingAppStatus">Checking app version...</small>
+              </div>
+              <button type="button" class="btn-secondary btn-settings-action" id="btnCheckAppUpdate" title="Check for STU Downloader updates">
+                <span id="appUpdateIcon">🔄</span>
+                <span id="appUpdateText">Check Update</span>
+              </button>
             </div>
-            <button type="button" class="btn-secondary btn-settings-action" id="btnCheckEngineUpdate" title="Check for yt-dlp updates">
-              <span id="engineUpdateIcon">🔄</span>
-              <span id="engineUpdateText">Check Update</span>
-            </button>
-          </div>
-          <div class="settings-item">
-            <div class="settings-label">
-              <strong>Server Control</strong>
-              <small id="settingServerStatus">Running in background</small>
+            <div class="settings-item">
+              <div class="settings-label">
+                <strong>Media Extractor Engine</strong>
+                <small id="settingEngineStatus">Checking engine version...</small>
+              </div>
+              <button type="button" class="btn-secondary btn-settings-action" id="btnCheckEngineUpdate" title="Check for extractor updates">
+                <span id="engineUpdateIcon">🔄</span>
+                <span id="engineUpdateText">Check Update</span>
+              </button>
             </div>
-            <button type="button" class="btn-secondary btn-settings-action btn-danger-action" id="btnShutdownServer" title="Stop STU Downloader backend server">
-              🛑 Stop Server
-            </button>
+            <div class="settings-item">
+              <div class="settings-label">
+                <strong>Server Control</strong>
+                <small id="settingServerStatus">Running in background</small>
+              </div>
+              <button type="button" class="btn-secondary btn-settings-action btn-danger-action" id="btnShutdownServer" title="Stop STU Downloader backend server">
+                🛑 Stop Server
+              </button>
+            </div>
+          </div>
+          <button class="btn-primary" id="btnSaveSettings">
+            <span>💾 Save Settings</span>
+          </button>
+        </div>
+
+        <!-- SUBTAB 2: ABOUT & OPEN SOURCE CREDITS -->
+        <div class="subtab-pane hidden" id="subtab-about">
+          <div class="about-card">
+            <div class="about-header">
+              <div class="logo-icon">⚡</div>
+              <div class="about-header-text">
+                <h3>STU Media Downloader</h3>
+                <span class="version">v1.1.0 • Open Source Powered</span>
+              </div>
+            </div>
+
+            <p class="about-description">
+              STU Media Downloader is built using industry-leading open-source engines and libraries to deliver high-performance, multi-threaded, and protocol-versatile media downloading.
+            </p>
+
+            <h4 class="about-section-title">📦 Core Open-Source Engines &amp; Libraries:</h4>
+            <ul class="about-tech-list">
+              <li>
+                <strong>yt-dlp</strong> — Core media extraction engine &amp; streaming video extractor.
+              </li>
+              <li>
+                <strong>libtorrent</strong> — High-performance C++ BitTorrent protocol engine with native Python bindings.
+              </li>
+              <li>
+                <strong>aria2c</strong> — Lightweight multi-protocol &amp; multi-connection download utility.
+              </li>
+              <li>
+                <strong>FFmpeg</strong> — Cross-platform multimedia framework for audio/video stream muxing &amp; processing.
+              </li>
+              <li>
+                <strong>Python &amp; Flask</strong> — Asynchronous backend server &amp; SSE progress streaming.
+              </li>
+              <li>
+                <strong>SQLAlchemy &amp; SQLite</strong> — High-speed transactional database engine for download history store.
+              </li>
+            </ul>
+
+            <div class="about-gratitude-box">
+              <div class="gratitude-title">❤️ Acknowledgments &amp; Gratitude</div>
+              <p>
+                We extend our deepest gratitude and appreciation to the original authors, core maintainers, and open-source contributors of yt-dlp, libtorrent, aria2c, FFmpeg, Python, Flask, and SQLAlchemy. Their commitment to sharing software freely under open-source licenses makes applications like STU Media Downloader possible.
+              </p>
+            </div>
           </div>
         </div>
-        <button class="btn-primary" id="btnSaveSettings">
-          <span>💾 Save Settings</span>
-        </button>
+
       </div>
     </div>
 
@@ -173,6 +223,10 @@
         <span class="tab-icon">📥</span>
         <span>Media</span>
       </button>
+      <button class="tab-btn" data-tab="tab-torrent">
+        <span class="tab-icon">🧲</span>
+        <span>Torrent &amp; FTP</span>
+      </button>
       <button class="tab-btn" data-tab="tab-queue">
         <span class="tab-icon">⚡</span>
         <span>Queue</span>
@@ -181,10 +235,6 @@
       <button class="tab-btn" data-tab="tab-history">
         <span class="tab-icon">📜</span>
         <span>History</span>
-      </button>
-      <button class="tab-btn" data-tab="tab-torrent">
-        <span class="tab-icon">🧲</span>
-        <span>Torrent &amp; FTP</span>
       </button>
     </nav>
 
@@ -302,8 +352,13 @@
         <!-- Search & Filter Controls -->
         <div class="history-controls">
           <input type="text" id="historySearch" placeholder="🔍 Search downloads..." autocomplete="off" title="Search downloads" aria-label="Search downloads">
-          <select id="historyFilter" title="Filter History by Status" aria-label="Filter History by Status">
-            <option value="all">All</option>
+          <select id="historyFilter" title="Filter History by Status or Type" aria-label="Filter History by Status or Type">
+            <option value="all">All Downloads</option>
+            <option value="video">🎬 Video</option>
+            <option value="audio">🎵 Audio</option>
+            <option value="torrent">🧲 Torrent</option>
+            <option value="ftp">📡 FTP</option>
+            <option value="direct">🔗 Direct</option>
             <option value="Completed">Completed</option>
             <option value="Failed">Failed</option>
             <option value="Cancelled">Cancelled</option>
@@ -332,10 +387,10 @@
       <section class="tab-pane" id="tab-torrent">
         <div class="torrent-tab-content">
 
-          <!-- URL Input -->
+          <!-- URL Input & File Picker Row -->
           <div class="torrent-input-wrap">
             <label class="torrent-input-label" for="torrentUrlInput">
-              Paste a link to download with aria2c
+              Paste link or select .torrent file
             </label>
             <div class="torrent-input-row">
               <input
@@ -346,10 +401,15 @@
                 autocomplete="off"
                 spellcheck="false"
               />
+              <button type="button" class="btn-icon-header" id="btnTorrentFile" title="Select .torrent file from computer">📂</button>
               <button type="button" class="btn-icon-header" id="btnTorrentPaste" title="Paste from clipboard">📋</button>
+              <input type="file" id="torrentFileInput" accept=".torrent" style="display:none;" />
             </div>
-            <!-- Auto-detected type badge -->
-            <div class="torrent-type-badge hidden" id="torrentTypeBadge"></div>
+            <!-- Auto-detected type badge & Engine indicator -->
+            <div class="torrent-badges-row">
+              <div class="torrent-type-badge hidden" id="torrentTypeBadge"></div>
+              <div class="engine-badge hidden" id="torrentEngineBadge">⚡ High Speed Mode</div>
+            </div>
           </div>
 
           <!-- Torrent info card (shown after parse) -->
@@ -367,26 +427,26 @@
               type="text"
               id="torrentCustomName"
               class="url-input"
-              placeholder="Custom name (optional)"
+              placeholder="Custom output filename (optional)"
               autocomplete="off"
             />
           </div>
 
           <!-- Start button -->
-          <button type="button" class="btn-primary" id="btnTorrentDownload" disabled>
+          <button type="button" class="btn-primary" id="btnTorrentDownload">
             <span id="torrentBtnText">🧲 Start Download</span>
           </button>
 
           <!-- Info note -->
           <div class="torrent-note">
-            <span>⚡ Downloads run via <strong>aria2c</strong> — progress tracks in the <strong>Queue</strong> tab</span>
+            <span>⚡ High-speed BitTorrent, FTP &amp; Multi-threaded Direct Downloader</span>
           </div>
 
           <!-- Supported formats legend -->
           <div class="torrent-legend">
             <div class="torrent-legend-item">
               <span class="badge badge-success">🧲 Torrent</span>
-              <span>magnet:?xt= links or .torrent file URLs</span>
+              <span>magnet:?xt= links or .torrent files</span>
             </div>
             <div class="torrent-legend-item">
               <span class="badge badge-info">📡 FTP</span>
@@ -394,7 +454,7 @@
             </div>
             <div class="torrent-legend-item">
               <span class="badge badge-warn">🔗 Direct</span>
-              <span>https:// direct file links (bypasses yt-dlp)</span>
+              <span>https:// direct file links (multi-connection acceleration)</span>
             </div>
           </div>
 

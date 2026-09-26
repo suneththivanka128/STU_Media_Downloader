@@ -51,7 +51,9 @@
 
 body {
   width: 420px;
-  max-height: 595px;
+  height: 580px;
+  min-height: 580px;
+  max-height: 580px;
   background-color: var(--bg-base);
   background-image: 
     radial-gradient(circle at 90% 10%, rgba(99, 102, 241, 0.15) 0%, transparent 45%),
@@ -61,8 +63,7 @@ body {
   font-family: var(--font-family);
   font-size: 13px;
   line-height: 1.45;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -85,8 +86,10 @@ body {
 .app-container {
   display: flex;
   flex-direction: column;
+  height: 100%;
   padding: 14px 16px 16px;
   gap: 13px;
+  overflow: hidden;
 }
 
 /* ============================================================
@@ -404,6 +407,10 @@ body {
 
 .tabs-content {
   position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .tab-pane {
@@ -1425,6 +1432,120 @@ input[type="range"] {
   z-index: 1;
 }
 
+/* Settings Subtabs Nav */
+.settings-subtabs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(10, 15, 29, 0.7);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+}
+
+.subtab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.subtab-btn:hover {
+  color: var(--text-primary);
+}
+
+.subtab-btn.active {
+  background: var(--accent-primary);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+}
+
+/* About Subtab Panel */
+.about-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 6px 2px;
+}
+
+.about-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.about-header-text h3 {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.about-description {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.about-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-indigo-light);
+  margin-top: 2px;
+}
+
+.about-tech-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.about-tech-list li {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: rgba(18, 26, 44, 0.55);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+  line-height: 1.45;
+}
+
+.about-tech-list li strong {
+  color: #ffffff;
+}
+
+.about-gratitude-box {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(6, 182, 212, 0.08) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gratitude-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-amber);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.about-gratitude-box p {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
 .btn-settings-close {
   background: none;
   border: 1px solid var(--glass-border);
@@ -1503,6 +1624,26 @@ input[type="range"] {
   width: fit-content;
   transition: opacity 0.2s;
 }
+.torrent-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.engine-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  color: #818cf8;
+}
+
 .torrent-type-badge.type-torrent {
   background: rgba(16,185,129,0.15);
   border: 1px solid rgba(16,185,129,0.4);
@@ -1543,6 +1684,55 @@ input[type="range"] {
 .torrent-info-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
 .torrent-custom-name-wrap .url-input { font-size: 12px; width: 100%; }
+
+.torrent-live-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-surface);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  margin-top: 4px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  animation: fadeInUp 0.25s ease;
+}
+
+.torrent-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.torrent-progress-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pulse-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  flex-shrink: 0;
+  animation: pulseGlow 1.5s infinite;
+}
+
+@keyframes pulseGlow {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 14px #10b981; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
 
 .torrent-note {
   font-size: 11px;
@@ -1677,6 +1867,20 @@ body.standalone-tab .settings-overlay {
   left: 50% !important;
   transform: translate(-50%, 0) !important;
 }
+
+/* Input Validation Shake & Highlight */
+@keyframes shake-error {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.input-error {
+  border-color: var(--accent-rose) !important;
+  box-shadow: 0 0 12px var(--accent-rose-glow) !important;
+  animation: shake-error 0.4s ease-in-out;
+}
+
 
 
 
