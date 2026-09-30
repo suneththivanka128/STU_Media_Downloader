@@ -173,7 +173,7 @@ if ALLOWED_ORIGIN == "*":
 else:
     CORS(app, origins=[ALLOWED_ORIGIN])
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 APP_GITHUB_REPO = "suneththivanka128/STU_Media_Downloader"
 
 
