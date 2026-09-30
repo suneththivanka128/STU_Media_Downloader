@@ -213,7 +213,7 @@ STU_Media_Downloader/
 │   ├── content.css                #   Same as Chrome (compatible)
 │   ├── popup.html                 #   Same as Chrome (compatible)
 │   ├── popup.css                  #   Same as Chrome (compatible)
-│   ├── popup.js                   #   Chrome version + browserAction shim at top
+│   ├── popup.js                   #   Chrome version + badgeApi shim + setHtml() safe renderer (v1.2.1)
 │   └── icons/                     #   Same icons (compatible)
 │
 └── README.md
@@ -257,6 +257,31 @@ STU_Media_Downloader/
 ---
 
 ## 📋 Changelog
+
+### v1.2.1 — Security Fixes (innerHTML → Safe DOM API) — Chrome & Firefox
+**Released:** September 2026
+
+#### 🔒 Security & Compatibility Fixes (Both `extension/` and `extension-firefox/`)
+
+- **🛡️ XSS-Safe Toast Notifications (`content.js:25`):**
+  - Replaced `toast.innerHTML` template literal (which accepted raw `pageTitle` & `mediaUrl` from untrusted web pages) with safe `textContent` + `document.createElement()` DOM construction — prevents HTML injection from malicious page titles/URLs.
+
+- **🔒 Safe HTML Rendering via `setHtml()` helper (`popup.js`):**
+  - Added `setHtml(el, html)` utility using `DOMParser` (inert document) to render HTML templates without executing scripts.
+  - Replaced direct `.innerHTML = \`...\`` assignments with `setHtml()` in queue cards, stream list cards, and history cards.
+
+- **🛡️ Escaped History Card Values (`popup.js`):**
+  - Applied `escapeHtml()` to all dynamic history values: `item.status`, `item.downloaded_at`, `item.file_format`, `item.quality`, `item.id` — prevents stored XSS from malicious download metadata.
+
+- **🔒 Button State Preservation without `innerHTML` (`popup.js`):**
+  - Replaced `btnBrowseFolder.innerHTML` save/restore pattern with `childNodes` cloning via `replaceChildren()` — avoids re-parsing HTML when restoring button state.
+
+- **⚙️ Firefox-Only: MV2 Badge API Fix (`extension-firefox/popup.js`):**
+  - Replaced `chrome.action = chrome.browserAction` global shim with `const badgeApi = chrome.browserAction || chrome.action` — eliminates AMO validator `chrome.action.setBadgeText` warnings without changing behaviour. *(Chrome MV3 unaffected — uses `chrome.action` directly.)*
+
+- **📦 Version bump:** Both `extension/manifest.json` and `extension-firefox/manifest.json` updated `1.2.0` → `1.2.1`.
+
+---
 
 ### v1.2.0 — Extended History Filters, Fixed Popup Dimensions & Open-Source Credits
 **Released:** September 2026

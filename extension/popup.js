@@ -65,7 +65,7 @@ const btnCheckAppUpdate = document.getElementById("btnCheckAppUpdate");
 const appUpdateIcon = document.getElementById("appUpdateIcon");
 const appUpdateText = document.getElementById("appUpdateText");
 
-let currentAppVersion = "1.2.0";
+let currentAppVersion = "1.2.1";
 let isDevEnvironment = false;
 
 // Settings Elements
@@ -474,14 +474,14 @@ function renderDetectedStreams(streams, tabId) {
     let originHost = "";
     try { originHost = new URL(stream.pageUrl).hostname; } catch (_) {}
 
-    item.innerHTML = `
+    setHtml(item, `
       <span class="detected-stream-icon">📡</span>
       <div class="detected-stream-info">
         <div class="detected-stream-label" title="${escapeHtml(stream.url)}">${escapeHtml(displayUrl)}</div>
         ${originHost ? `<div class="detected-stream-origin">🌐 ${escapeHtml(originHost)}</div>` : ""}
       </div>
       <button class="btn-use-stream" data-idx="${idx}">⚡ Use</button>
-    `;
+    `);
 
     item.querySelector(".btn-use-stream").addEventListener("click", () => {
       useDetectedStream(stream);
@@ -707,8 +707,8 @@ function setupEventListeners() {
           return;
         }
       }
-      const prevHtml = btnBrowseFolder.innerHTML;
-      btnBrowseFolder.innerHTML = "⏳ Choosing...";
+      const prevNodes = Array.from(btnBrowseFolder.childNodes).map((n) => n.cloneNode(true));
+      btnBrowseFolder.textContent = "⏳ Choosing...";
       btnBrowseFolder.disabled = true;
       showToast("📁 Folder picker opened! Selection auto-saves on backend.", 4000);
       try {
@@ -745,7 +745,7 @@ function setupEventListeners() {
       } catch (e) {
         console.error("Folder picker request error:", e);
       } finally {
-        btnBrowseFolder.innerHTML = prevHtml;
+        btnBrowseFolder.replaceChildren(...prevNodes);
         btnBrowseFolder.disabled = false;
       }
     });
@@ -1438,7 +1438,7 @@ function listenToProgressStream(taskId, fallbackTitle = "Media Download") {
     card = document.createElement("div");
     card.className = "queue-card";
     card.id = `task-card-${taskId}`;
-    card.innerHTML = `
+    setHtml(card, `
       <div class="queue-card-header">
         <h4 class="queue-title">${escapeHtml(fallbackTitle)}</h4>
         <span class="badge-status queued" id="status-badge-${taskId}">Queued</span>
@@ -1483,7 +1483,7 @@ function listenToProgressStream(taskId, fallbackTitle = "Media Download") {
           <span>✕</span><span>Cancel Download</span>
         </button>
       </div>
-    `;
+    `);
     queueList.prepend(card);
 
     document.getElementById(`btn-cancel-${taskId}`).addEventListener("click", () => {
@@ -1641,13 +1641,13 @@ function renderHistoryItems(items, total, page, limit) {
   btnNextPage.disabled = page >= totalPages;
 
   if (!items || items.length === 0) {
-    historyList.innerHTML = `
+    setHtml(historyList, `
       <div class="empty-state">
         <div class="empty-icon">📜</div>
         <h3>No History Records</h3>
         <p>Your downloaded media records will appear here.</p>
       </div>
-    `;
+    `);
     return;
   }
 
@@ -1659,15 +1659,15 @@ function renderHistoryItems(items, total, page, limit) {
     const statusClass = (item.status || "completed").toLowerCase();
     const sizeStr = item.file_size_mb ? `${item.file_size_mb.toFixed(1)} MB` : "";
 
-    card.innerHTML = `
+    setHtml(card, `
       <div class="history-item-main">
         <div class="history-item-title">${escapeHtml(item.title)}</div>
-        <span class="badge-status ${statusClass}">${item.status}</span>
+        <span class="badge-status ${escapeHtml(statusClass)}">${escapeHtml(item.status)}</span>
       </div>
       <div class="history-item-meta">
-        <span>🕒 ${item.downloaded_at || "Recent"}</span>
+        <span>🕒 ${escapeHtml(item.downloaded_at || "Recent")}</span>
         <span>•</span>
-        <span>🎬 ${item.file_format.toUpperCase()} (${item.quality || "best"})</span>
+        <span>🎬 ${escapeHtml(String(item.file_format || "").toUpperCase())} (${escapeHtml(item.quality || "best")})</span>
         ${sizeStr ? `<span>•</span><span>💾 ${sizeStr}</span>` : ""}
       </div>
       <div class="history-actions">
@@ -1677,12 +1677,14 @@ function renderHistoryItems(items, total, page, limit) {
             : ""
         }
         <button class="btn-action-small btn-redownload" data-url="${escapeHtml(item.source_url)}" data-format="${escapeHtml(item.file_format)}" data-quality="${escapeHtml(item.quality)}" title="Download again">🔁 Re-download</button>
-        <button class="btn-action-small btn-delete-item" data-id="${item.id}" title="Remove record">🗑</button>
+        <button class="btn-action-small btn-delete-item" data-id="${escapeHtml(String(item.id))}" title="Remove record">🗑</button>
       </div>
-    `;
+    `);
 
     historyList.appendChild(card);
   });
+
+
 
   document.querySelectorAll(".btn-open-folder").forEach((btn) => {
     btn.addEventListener("click", () => openFolder(btn.getAttribute("data-path")));
@@ -1871,6 +1873,16 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+/**
+ * Safely render an HTML template string into an element.
+ * Uses DOMParser (inert document) and moves the nodes over, so no scripts run.
+ * Every dynamic value inside the template MUST still go through escapeHtml().
+ */
+function setHtml(el, html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  el.replaceChildren(...doc.body.childNodes);
 }
 
 function debounce(func, wait) {

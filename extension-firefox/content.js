@@ -22,7 +22,11 @@
 
       const toast = document.createElement("div");
       toast.className = "smd-toast";
-      toast.innerHTML = `<span>${isSuccess ? "⚡" : "⚠️"}</span> <span>${message}</span>`;
+      const iconEl = document.createElement("span");
+      iconEl.textContent = isSuccess ? "⚡" : "⚠️";
+      const msgEl = document.createElement("span");
+      msgEl.textContent = message; // textContent: page titles/URLs can never inject HTML
+      toast.append(iconEl, document.createTextNode(" "), msgEl);
       document.body.appendChild(toast);
 
       setTimeout(() => {

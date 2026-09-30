@@ -230,8 +230,8 @@ def test_check_app_update_prod_mode_mock(client, monkeypatch):
             status_code = 200
             def json(self):
                 return {
-                    "tag_name": "v1.2.0",
-                    "html_url": "https://github.com/suneththivanka128/STU_Media_Downloader/releases/v1.2.0",
+                    "tag_name": "v1.3.0",
+                    "html_url": "https://github.com/suneththivanka128/STU_Media_Downloader/releases/v1.3.0",
                     "body": "Test release notes"
                 }
 
@@ -243,7 +243,7 @@ def test_check_app_update_prod_mode_mock(client, monkeypatch):
         data = res.get_json()
         assert data["is_dev"] is False
         assert data["update_available"] is True
-        assert data["latest_version"] == "1.2.0"
+        assert data["latest_version"] == "1.3.0"
         assert "release_url" in data
     finally:
         app.config.pop("IS_DEV_MODE", None)
